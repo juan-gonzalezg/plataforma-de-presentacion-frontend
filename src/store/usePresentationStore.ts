@@ -54,6 +54,7 @@ interface PresentationStore {
 
   // Acciones
   loadTopics: () => Promise<void>;
+  refreshTopics: () => Promise<void>;
   selectTopic: (topicId: string) => Promise<void>;
   nextSlide: () => void;
   prevSlide: () => void;
@@ -118,6 +119,21 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       }
     } catch (err) {
       console.error('Error cargando temas:', err);
+    } finally {
+      set({ isLoadingTopics: false });
+    }
+  },
+
+  refreshTopics: async () => {
+    set({ isLoadingTopics: true });
+    try {
+      const res = await fetch(apiUrl('/api/topics/refresh'), { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        set({ topics: data.topics || [] });
+      }
+    } catch (err) {
+      console.error('Error refrescando temas desde Supabase:', err);
     } finally {
       set({ isLoadingTopics: false });
     }

@@ -11,7 +11,9 @@ import {
   ArrowRight,
   Database,
   Download,
-  Loader2
+  Loader2,
+  BookOpen,
+  RefreshCw
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
@@ -21,6 +23,7 @@ export const P01_Home: React.FC = () => {
   const { 
     topics, 
     loadTopics, 
+    refreshTopics,
     selectTopic, 
     isLoadingTopics, 
     isLoadingTopicDetail,
@@ -66,6 +69,8 @@ export const P01_Home: React.FC = () => {
         return <Brain className="w-8 h-8 text-purple-400" />;
       case 'shield':
         return <ShieldCheck className="w-8 h-8 text-emerald-400" />;
+      case 'book':
+        return <BookOpen className="w-8 h-8 text-amber-400" />;
       default:
         return <Layers className="w-8 h-8 text-cyan-400" />;
     }
@@ -94,9 +99,19 @@ export const P01_Home: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => refreshTopics()}
+            disabled={isLoadingTopics}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-850 border border-cyan-500/40 text-xs text-cyan-300 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+            title="Sincronizar y escanear presentaciones en Supabase Storage"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isLoadingTopics ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Sincronizar Supabase</span>
+          </button>
+
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-emerald-500/30 text-xs text-emerald-300">
             <Database className="w-3.5 h-3.5 text-emerald-400" />
-            <span>RAG Vectorial Local Listo</span>
+            <span>RAG Vectorial Listo</span>
           </div>
           <AccessibilityControls />
         </div>
