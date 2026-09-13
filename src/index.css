@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-main: #080d1a;
+    --bg-card: #0f172a;
+    --bg-drawer: #151f32;
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-glow: #00f0ff;
+    --highlight-bg: rgba(250, 204, 21, 0.25);
+    --highlight-border: #facc15;
+    --font-base-size: 1.15rem;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-size: var(--font-base-size);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+}
+
+/* Modos de contraste para proyección (HU-RES-02) */
+.theme-cinema-dark {
+  --bg-main: #060a12;
+  --bg-card: #0f172a;
+  --bg-drawer: #131c2e;
+  --text-primary: #f1f5f9;
+  --text-muted: #94a3b8;
+  --accent-glow: #00f0ff;
+  --highlight-bg: rgba(0, 240, 255, 0.2);
+  --highlight-border: #00f0ff;
+}
+
+.theme-projector-high-contrast {
+  --bg-main: #000000;
+  --bg-card: #0a0a0a;
+  --bg-drawer: #111111;
+  --text-primary: #ffffff;
+  --text-muted: #d4d4d8;
+  --accent-glow: #38bdf8;
+  --highlight-bg: rgba(250, 204, 21, 0.4);
+  --highlight-border: #facc15;
+}
+
+.theme-clean-light {
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-drawer: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-muted: #475569;
+  --accent-glow: #0284c7;
+  --highlight-bg: rgba(254, 240, 138, 0.6);
+  --highlight-border: #ca8a04;
+}
+
+/* Tamaños de fuente accesibles */
+.font-size-normal {
+  --font-base-size: 1.15rem; /* ~18.4px */
+}
+
+.font-size-large {
+  --font-base-size: 1.35rem; /* ~21.6px */
+}
+
+.font-size-xlarge {
+  --font-base-size: 1.55rem; /* ~24.8px */
+}
+
+/* Smart Highlight Fluorescente Pulsante (HU-NOT-02) */
+@keyframes smartHighlightPulse {
+  0% {
+    background-color: var(--highlight-bg);
+    box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7);
+    border-color: var(--highlight-border);
+  }
+  50% {
+    background-color: rgba(250, 204, 21, 0.35);
+    box-shadow: 0 0 25px 5px rgba(250, 204, 21, 0.5);
+    border-color: #fef08a;
+  }
+  100% {
+    background-color: var(--highlight-bg);
+    box-shadow: 0 0 0 0 rgba(250, 204, 21, 0);
+    border-color: var(--highlight-border);
+  }
+}
+
+.smart-highlight-active {
+  animation: smartHighlightPulse 2s ease-in-out infinite;
+  border-left: 5px solid var(--highlight-border) !important;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  transition: all 0.4s ease;
+}
+
+/* Transición suave del ancho del escenario de 90% a 65% (HU-PRS-02) */
+.stage-focus-transition {
+  transition: width 400ms cubic-bezier(0.16, 1, 0.3, 1), max-width 400ms cubic-bezier(0.16, 1, 0.3, 1), transform 400ms ease;
+}
+
+/* Scrollbar estilizada sutil */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.5);
+}
