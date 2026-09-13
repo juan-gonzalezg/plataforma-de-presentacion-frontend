@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Eye, Sun, Moon, Monitor, Type, Wifi, CheckCircle2, History } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { ContrastMode, FontSizeSetting } from '../types';
+import { apiUrl } from '../lib/apiBase';
 
 export const AccessibilityControls: React.FC = () => {
   const { 
@@ -20,7 +21,7 @@ export const AccessibilityControls: React.FC = () => {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch('/api/health');
+        const res = await fetch(apiUrl('/api/health'));
         setIsBackendHealthy(res.ok);
       } catch {
         setIsBackendHealthy(false);

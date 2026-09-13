@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { apiUrl } from '../lib/apiBase';
 import { 
   AppView, 
   ContrastMode, 
@@ -110,7 +111,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   loadTopics: async () => {
     set({ isLoadingTopics: true });
     try {
-      const res = await fetch('/api/topics');
+      const res = await fetch(apiUrl('/api/topics'));
       if (res.ok) {
         const data = await res.json();
         set({ topics: data.topics || [] });
@@ -125,7 +126,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   selectTopic: async (topicId: string) => {
     set({ isLoadingTopicDetail: true, robotMood: 'buscar_antena', robotSpeechBubble: 'Precargando diapositivas y base RAG...' });
     try {
-      const res = await fetch(`/api/topics/${topicId}`);
+      const res = await fetch(apiUrl(`/api/topics/${topicId}`));
       if (res.ok) {
         const data = await res.json();
         set({ 
@@ -266,7 +267,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     }, 4000); // 4000ms strict timeout
 
     try {
-      const res = await fetch('/api/ask', {
+      const res = await fetch(apiUrl('/api/ask'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -426,7 +427,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
 
   downloadTopicMaterial: async (topicId: string, tipo: 'pdf' | 'pptx' = 'pdf'): Promise<DownloadResponse | null> => {
     try {
-      const res = await fetch(`/api/topics/${topicId}/download?tipo=${tipo}`);
+      const res = await fetch(apiUrl(`/api/topics/${topicId}/download?tipo=${tipo}`));
       if (!res.ok) {
         throw new Error(`Error en la descarga: ${res.statusText}`);
       }
@@ -454,7 +455,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   // el visor de Smart Highlight, sin disparar una descarga en el navegador.
   fetchPdfViewUrl: async (topicId: string): Promise<string | null> => {
     try {
-      const res = await fetch(`/api/topics/${topicId}/download?tipo=pdf`);
+      const res = await fetch(apiUrl(`/api/topics/${topicId}/download?tipo=pdf`));
       if (!res.ok) return null;
       const data: DownloadResponse = await res.json();
       return data.download_url || null;
