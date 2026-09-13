@@ -38,7 +38,14 @@ export interface TopicMetadata {
 
 export interface TopicDetail extends TopicMetadata {
   slides: Slide[];
-  notes_markdown: string;
+  notes_markdown?: string;
+}
+
+export interface HighlightBbox {
+  x0: number;
+  top: number;
+  x1: number;
+  bottom: number;
 }
 
 export interface QueryResponse {
@@ -47,6 +54,8 @@ export interface QueryResponse {
   block_title?: string;
   answer_summary: string;
   excerpt?: string;
+  pagina?: number;
+  bbox?: HighlightBbox;
   external_url?: string;
   confidence: number;
   query: string;
@@ -72,6 +81,8 @@ export interface ChatMessage {
   text: string;
   source?: 'local' | 'web' | 'timeout';
   target_block_id?: string;
+  pagina?: number;
+  bbox?: HighlightBbox;
   external_url?: string;
   confidence?: number;
   timestamp: string;

@@ -9,7 +9,8 @@ import {
   StickyNote, 
   ChatMessage, 
   QueryResponse,
-  DownloadResponse 
+  DownloadResponse,
+  HighlightBbox 
 } from '../types';
 
 interface PresentationStore {
@@ -35,6 +36,9 @@ interface PresentationStore {
 
   // Smart Highlight
   activeHighlightBlockId: string | null;
+  // Smart Highlight sobre PDF (cuando el módulo no tiene notes_markdown)
+  activeHighlightPage: number | null;
+  activeHighlightBbox: HighlightBbox | null;
 
   // Sticky Notes y Chat
   stickyNotes: StickyNote[];
@@ -61,6 +65,7 @@ interface PresentationStore {
   setRobotMood: (mood: RobotMood, durationMs?: number) => void;
   setRobotSpeech: (speech: string | null, durationMs?: number) => void;
   setActiveHighlightBlockId: (id: string | null) => void;
+  setActiveHighlightPdfTarget: (page: number | null, bbox: HighlightBbox | null) => void;
   askQuestion: (query: string) => Promise<QueryResponse | null>;
   addStickyNote: (note: StickyNote) => void;
   removeStickyNote: (id: string) => void;
@@ -69,6 +74,7 @@ interface PresentationStore {
   setFontSize: (size: FontSizeSetting) => void;
   clearSearchError: () => void;
   downloadTopicMaterial: (topicId: string, tipo?: 'pdf' | 'pptx') => Promise<DownloadResponse | null>;
+  fetchPdfViewUrl: (topicId: string) => Promise<string | null>;
 }
 
 export const usePresentationStore = create<PresentationStore>((set, get) => ({
@@ -89,6 +95,8 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   robotSpeechBubble: '¡Hola! Selecciona un módulo para comenzar la sesión.',
 
   activeHighlightBlockId: null,
+  activeHighlightPage: null,
+  activeHighlightBbox: null,
 
   stickyNotes: [],
   chatMessages: [],
@@ -238,6 +246,10 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     set({ activeHighlightBlockId: id });
   },
 
+  setActiveHighlightPdfTarget: (page: number | null, bbox: HighlightBbox | null) => {
+    set({ activeHighlightPage: page, activeHighlightBbox: bbox });
+  },
+
   // HU-RES-01: Tolerancia a Fallos y Timeout Estricto de 4000ms
   askQuestion: async (query: string): Promise<QueryResponse | null> => {
     const { selectedTopic, currentSlideIndex, setRobotMood, setRobotSpeech } = get();
@@ -279,10 +291,23 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
         isSearching: false
       }));
 
-      if (data.source === 'local' && data.target_block_id) {
-        // Encontrado en notas oficiales -> Smart Highlight
+      if (data.source === 'local' && data.pagina && data.bbox) {
+        // Módulo basado en PDF: recuadro precalculado sobre página + bbox
+        set({
+          activeHighlightPage: data.pagina,
+          activeHighlightBbox: data.bbox,
+          activeHighlightBlockId: data.target_block_id ?? null,
+          isDrawerOpen: true,
+        });
+        setRobotMood('apuntar_puntero', 2000);
+        setRobotSpeech(`¡Respuesta encontrada en la página ${data.pagina}!`, 5000);
+
+      } else if (data.source === 'local' && data.target_block_id) {
+        // Módulo basado en notas Markdown -> Smart Highlight de bloque
         set({
           activeHighlightBlockId: data.target_block_id,
+          activeHighlightPage: null,
+          activeHighlightBbox: null,
           isDrawerOpen: true, // Abrir drawer de notas
         });
         setRobotMood('apuntar_puntero', 2000);
@@ -421,6 +446,20 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       return null;
     } catch (err) {
       console.error('Error al descargar material del módulo:', err);
+      return null;
+    }
+  },
+
+  // Obtiene la URL (pública o firmada) del PDF solo para RENDERIZARLO en
+  // el visor de Smart Highlight, sin disparar una descarga en el navegador.
+  fetchPdfViewUrl: async (topicId: string): Promise<string | null> => {
+    try {
+      const res = await fetch(`/api/topics/${topicId}/download?tipo=pdf`);
+      if (!res.ok) return null;
+      const data: DownloadResponse = await res.json();
+      return data.download_url || null;
+    } catch (err) {
+      console.error('Error obteniendo URL de vista del PDF:', err);
       return null;
     }
   }

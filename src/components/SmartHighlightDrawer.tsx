@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, BookOpen, Sparkles, Pin, Download, Loader2 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
+import { PdfHighlightViewer } from './PdfHighlightViewer';
 
 export const SmartHighlightDrawer: React.FC = () => {
   const { 
@@ -53,8 +54,10 @@ export const SmartHighlightDrawer: React.FC = () => {
 
   if (!selectedTopic) return null;
 
-  // Separar bloques por div id="block-X"
-  const rawMarkdown = selectedTopic.notes_markdown;
+  const hasMarkdownNotes = Boolean(selectedTopic.notes_markdown);
+
+  // Separar bloques por div id="block-X" (solo aplica a temas con notas Markdown)
+  const rawMarkdown = selectedTopic.notes_markdown ?? '';
   const blocksPattern = /<div\s+id="([^"]+)"[^>]*>(.*?)<\/div>/gs;
   const blocks: { id: string; content: string }[] = [];
   let match;
@@ -143,59 +146,63 @@ export const SmartHighlightDrawer: React.FC = () => {
         </div>
       </div>
 
-      {/* Contenido continuo de notas con Scroll independiente */}
-      <div 
-        ref={containerRef}
-        className="flex-1 overflow-y-auto p-5 space-y-5 text-slate-200"
-      >
-        <div className="prose prose-invert prose-sm max-w-none">
-          <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">
-            Fundamentación Teórica Oficial
-          </p>
+      {/* Contenido: visor de PDF con recuadro (módulos sin notas_markdown) o documento Markdown (temas de ejemplo) */}
+      {hasMarkdownNotes ? (
+        <div 
+          ref={containerRef}
+          className="flex-1 overflow-y-auto p-5 space-y-5 text-slate-200"
+        >
+          <div className="prose prose-invert prose-sm max-w-none">
+            <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">
+              Fundamentación Teórica Oficial
+            </p>
 
-          {blocks.length > 0 ? (
-            blocks.map((b) => {
-              const isHighlighted = b.id === activeHighlightBlockId;
-              return (
-                <div
-                  key={b.id}
-                  id={b.id}
-                  className={`p-4 rounded-xl transition-all duration-500 border ${
-                    isHighlighted
-                      ? 'smart-highlight-active bg-amber-500/15 border-amber-400 shadow-lg shadow-amber-500/20'
-                      : 'bg-slate-850/60 border-slate-800/70 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700/60">
-                      #{b.id}
-                    </span>
-                    {isHighlighted && (
-                      <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40 animate-pulse">
-                        <Sparkles className="w-3 h-3" /> Resaltado RAG
+            {blocks.length > 0 ? (
+              blocks.map((b) => {
+                const isHighlighted = b.id === activeHighlightBlockId;
+                return (
+                  <div
+                    key={b.id}
+                    id={b.id}
+                    className={`p-4 rounded-xl transition-all duration-500 border ${
+                      isHighlighted
+                        ? 'smart-highlight-active bg-amber-500/15 border-amber-400 shadow-lg shadow-amber-500/20'
+                        : 'bg-slate-850/60 border-slate-800/70 hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700/60">
+                        #{b.id}
                       </span>
-                    )}
-                  </div>
+                      {isHighlighted && (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40 animate-pulse">
+                          <Sparkles className="w-3 h-3" /> Resaltado RAG
+                        </span>
+                      )}
+                    </div>
 
-                  <div 
-                    className="text-sm leading-relaxed text-slate-300 space-y-2"
-                    dangerouslySetInnerHTML={{ 
-                      __html: b.content
-                        .replace(/###\s*(.*)/g, '<h4 class="text-base font-bold text-slate-100 mt-1 mb-2">$1</h4>')
-                        .replace(/\*\*(.*?)\*\*/g, '<strong class="text-cyan-300 font-semibold">$1</strong>')
-                        .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-900 font-mono text-cyan-200 text-xs">$1</code>')
-                    }}
-                  />
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-slate-400 text-sm italic">
-              No se encontraron bloques anotados en el documento de notas.
-            </div>
-          )}
+                    <div 
+                      className="text-sm leading-relaxed text-slate-300 space-y-2"
+                      dangerouslySetInnerHTML={{ 
+                        __html: b.content
+                          .replace(/###\s*(.*)/g, '<h4 class="text-base font-bold text-slate-100 mt-1 mb-2">$1</h4>')
+                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-cyan-300 font-semibold">$1</strong>')
+                          .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-900 font-mono text-cyan-200 text-xs">$1</code>')
+                      }}
+                    />
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-slate-400 text-sm italic">
+                No se encontraron bloques anotados en el documento de notas.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <PdfHighlightViewer />
+      )}
 
       {/* Footer del Drawer con atajos útiles */}
       <div className="p-3 bg-slate-950 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">

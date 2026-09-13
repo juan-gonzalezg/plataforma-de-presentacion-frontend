@@ -44,7 +44,9 @@ export const P03_NotebookLM: React.FC = () => {
   const currentSlide = selectedTopic.slides[currentSlideIndex];
 
   // Extraer bloques de notas para la columna de fuentes documentales
-  const rawMarkdown = selectedTopic.notes_markdown;
+  // (aplica solo a temas con notes_markdown; los módulos basados en PDF
+  // muestran esta columna vacía por ahora — ver nota de seguimiento)
+  const rawMarkdown = selectedTopic.notes_markdown ?? '';
   const blocksPattern = /<div\s+id="([^"]+)"[^>]*>(.*?)<\/div>/gs;
   const sourceBlocks: { id: string; title: string; content: string }[] = [];
   let match;
