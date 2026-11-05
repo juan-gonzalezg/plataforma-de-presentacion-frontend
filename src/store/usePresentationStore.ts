@@ -11,7 +11,10 @@ import {
   ChatMessage, 
   QueryResponse,
   DownloadResponse,
-  HighlightBbox 
+  HighlightBbox,
+  ChatSource,
+  LlmStatus,
+  WebResult
 } from '../types';
 
 interface PresentationStore {
@@ -45,6 +48,8 @@ interface PresentationStore {
   stickyNotes: StickyNote[];
   chatMessages: ChatMessage[];
   sessionHistory: QueryResponse[];
+  latestChatSources: ChatSource[];
+  llmStatus: LlmStatus | null;
 
   // Resiliencia y Accesibilidad
   isSearching: boolean;
@@ -72,12 +77,34 @@ interface PresentationStore {
   addStickyNote: (note: StickyNote) => void;
   removeStickyNote: (id: string) => void;
   sendChatMessage: (text: string) => Promise<void>;
+  stopChatStream: () => void;
+  loadLlmStatus: () => Promise<void>;
   setContrastMode: (mode: ContrastMode) => void;
   setFontSize: (size: FontSizeSetting) => void;
   clearSearchError: () => void;
   downloadTopicMaterial: (topicId: string, tipo?: 'pdf' | 'pptx') => Promise<DownloadResponse | null>;
   fetchPdfViewUrl: (topicId: string) => Promise<string | null>;
 }
+
+// Controlador del stream SSE activo (permite detener la generación del LLM).
+let chatAbortController: AbortController | null = null;
+
+type ChatStreamEvent =
+  | { type: 'sources'; mode?: 'llm' | 'extractive'; sources?: ChatSource[] }
+  | { type: 'delta'; text?: string }
+  | { type: 'notice'; message?: string }
+  | { type: 'error'; message?: string }
+  | {
+      type: 'done';
+      mode?: 'llm' | 'extractive';
+      citations?: string[];
+      sources?: ChatSource[];
+      confidence?: number;
+      latency_ms?: number;
+      web_results?: WebResult[];
+      web_provider?: string;
+      web_error?: string;
+    };
 
 export const usePresentationStore = create<PresentationStore>((set, get) => ({
   currentView: 'home',
@@ -103,6 +130,8 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   stickyNotes: [],
   chatMessages: [],
   sessionHistory: [],
+  latestChatSources: [],
+  llmStatus: null,
 
   isSearching: false,
   searchErrorToast: null,
@@ -152,11 +181,12 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
           isDrawerOpen: false,
           robotMood: 'idle_atento',
           robotSpeechBubble: `Módulo cargado. Usa las flechas para navegar o 'N' para ver notas.`,
+          latestChatSources: [],
           chatMessages: [
             {
               id: 'init-msg',
               sender: 'assistant',
-              text: `Bienvenido al módulo "${data.topic.title}". Puedes hacerme cualquier pregunta técnica sobre los conceptos expuestos.`,
+              text: `Bienvenido al módulo "${data.topic.title}". Puedes hacerme cualquier pregunta técnica: responderé citando las secciones oficiales del texto base.`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             }
           ]
@@ -267,20 +297,21 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     set({ activeHighlightPage: page, activeHighlightBbox: bbox });
   },
 
-  // HU-RES-01: Tolerancia a Fallos y Timeout Estricto de 4000ms
+  // Consulta del Spotlight: búsqueda local rápida o web real resumida por el LLM.
+  // El backend puede tardar hasta ~18 s cuando consulta un proveedor web.
   askQuestion: async (query: string): Promise<QueryResponse | null> => {
     const { selectedTopic, currentSlideIndex, setRobotMood, setRobotSpeech } = get();
     if (!selectedTopic || !query.trim()) return null;
 
     set({ isSearching: true, searchErrorToast: null });
     setRobotMood('buscar_antena');
-    setRobotSpeech('Buscando en notas oficiales y fuentes semánticas...');
+    setRobotSpeech('Buscando en notas oficiales y fuentes web...');
 
     const currentSlide = selectedTopic.slides[currentSlideIndex];
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => {
       abortController.abort();
-    }, 4000); // 4000ms strict timeout
+    }, 20000); // 20 s: cubre búsqueda web + resumen del LLM
 
     try {
       const res = await fetch(apiUrl('/api/ask'), {
@@ -339,13 +370,15 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
         }, 150);
 
       } else if (data.source === 'web') {
-        // Encontrado en búsqueda web -> Generar Sticky Note
+        // Encontrado en búsqueda web real -> Generar Sticky Note con enlaces
         const newSticky: StickyNote = {
           id: `sticky-${Date.now()}`,
           query: data.query,
           answer: data.answer_summary,
           source: 'web',
-          external_url: data.external_url,
+          external_url: data.external_url ?? data.web_results?.[0]?.url,
+          web_results: data.web_results ?? [],
+          provider: data.provider,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
 
@@ -354,7 +387,25 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
         }));
 
         setRobotMood('celebrar', 2500);
-        setRobotSpeech('Respuesta localizada mediante búsqueda web externa.', 4000);
+        setRobotSpeech(
+          data.web_results?.length
+            ? `Respuesta externa sintetizada con ${data.web_results.length} fuentes web.`
+            : 'No se encontraron resultados web para esa consulta.',
+          4000
+        );
+
+      } else if (data.source === 'timeout') {
+        const timeoutMsg =
+          data.answer_summary || 'La búsqueda tardó demasiado. Inténtalo de nuevo.';
+        set({ searchErrorToast: timeoutMsg });
+        setRobotMood('sin_senal', 3000);
+        setRobotSpeech(timeoutMsg, 4000);
+
+        setTimeout(() => {
+          if (get().searchErrorToast === timeoutMsg) {
+            set({ searchErrorToast: null });
+          }
+        }, 4000);
       }
 
       return data;
@@ -397,35 +448,297 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   },
 
   sendChatMessage: async (text: string) => {
-    const { askQuestion } = get();
-    if (!text.trim()) return;
+    const {
+      selectedTopic,
+      currentSlideIndex,
+      chatMessages,
+      setRobotMood,
+      setRobotSpeech
+    } = get();
+
+    const trimmed = text.trim();
+    if (!selectedTopic || !trimmed || get().isSearching) return;
+
+    const currentSlide = selectedTopic.slides[currentSlideIndex];
+    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const assistantId = `ast-${Date.now()}`;
 
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
       sender: 'user',
-      text: text.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      text: trimmed,
+      timestamp: now
     };
 
-    set((state) => ({
-      chatMessages: [...state.chatMessages, userMsg]
-    }));
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      sender: 'assistant',
+      text: '',
+      timestamp: now,
+      isStreaming: true
+    };
 
-    const result = await askQuestion(text.trim());
-    if (result) {
-      const assistantMsg: ChatMessage = {
-        id: `ast-${Date.now()}`,
-        sender: 'assistant',
-        text: result.answer_summary,
-        source: result.source,
-        target_block_id: result.target_block_id,
-        external_url: result.external_url,
-        confidence: result.confidence,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      set((state) => ({
-        chatMessages: [...state.chatMessages, assistantMsg]
+    // Turnos previos para que el LLM mantenga el hilo de la conversación.
+    const history = chatMessages
+      .filter((m) => m.text.trim() && !m.isStreaming)
+      .slice(-8)
+      .map((m) => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text
       }));
+
+    set((state) => ({
+      chatMessages: [...state.chatMessages, userMsg, assistantMsg],
+      isSearching: true,
+      searchErrorToast: null,
+      latestChatSources: []
+    }));
+    setRobotMood('buscar_antena');
+    setRobotSpeech('Consultando las notas oficiales y redactando una respuesta...');
+
+    const controller = new AbortController();
+    chatAbortController = controller;
+
+    const updateAssistant = (patch: Partial<ChatMessage>) => {
+      set((state) => ({
+        chatMessages: state.chatMessages.map((m) =>
+          m.id === assistantId ? { ...m, ...patch } : m
+        )
+      }));
+    };
+
+    try {
+      const res = await fetch(apiUrl('/api/chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic_id: selectedTopic.id,
+          message: trimmed,
+          history,
+          current_slide_id: currentSlide?.id,
+          top_k: 5
+        }),
+        signal: controller.signal
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`El servidor respondió ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finished = false;
+
+      while (!finished) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, '\n');
+
+        let separatorIndex = buffer.indexOf('\n\n');
+        while (separatorIndex !== -1) {
+          const frame = buffer.slice(0, separatorIndex);
+          buffer = buffer.slice(separatorIndex + 2);
+
+          for (const line of frame.split('\n')) {
+            if (!line.startsWith('data:')) continue;
+
+            const raw = line.slice(5).trim();
+            if (!raw) continue;
+            if (raw === '[DONE]') {
+              finished = true;
+              continue;
+            }
+
+            let event: ChatStreamEvent;
+            try {
+              event = JSON.parse(raw) as ChatStreamEvent;
+            } catch {
+              continue;
+            }
+
+            if (event.type === 'sources') {
+              const sources = event.sources ?? [];
+              updateAssistant({ sources, mode: event.mode ?? 'llm' });
+              set({ latestChatSources: sources });
+
+            } else if (event.type === 'delta') {
+              const chunk = event.text ?? '';
+              if (chunk) {
+                set((state) => ({
+                  chatMessages: state.chatMessages.map((m) =>
+                    m.id === assistantId ? { ...m, text: m.text + chunk } : m
+                  )
+                }));
+              }
+
+            } else if (event.type === 'notice') {
+              const notice = event.message ?? '';
+              if (notice) updateAssistant({ notice });
+
+            } else if (event.type === 'error') {
+              updateAssistant({
+                error: true,
+                notice: event.message ?? 'Error al generar la respuesta.'
+              });
+
+            } else if (event.type === 'done') {
+              const citations = event.citations ?? [];
+              const sources = event.sources ?? [];
+              const webResults = event.web_results ?? [];
+              const finalAnswer =
+                get().chatMessages.find((m) => m.id === assistantId)?.text ?? '';
+
+              const localSources = sources.filter((s) => s.source !== 'web');
+              const citedSource =
+                citations.length > 0
+                  ? sources.find((s) => s.id === citations[0])
+                  : undefined;
+              const topSource =
+                citedSource && citedSource.source !== 'web'
+                  ? citedSource
+                  : localSources[0];
+
+              const historySource: QueryResponse['source'] = localSources.length
+                ? 'local'
+                : webResults.length
+                  ? 'web'
+                  : 'timeout';
+
+              const historyEntry: QueryResponse = {
+                source: historySource,
+                target_block_id: topSource?.id,
+                block_title: topSource?.title,
+                answer_summary: finalAnswer,
+                excerpt: topSource?.excerpt,
+                pagina: topSource?.pagina,
+                bbox: topSource?.bbox,
+                external_url: webResults[0]?.url,
+                web_results: webResults,
+                provider: event.web_provider,
+                confidence: event.confidence ?? 0,
+                query: trimmed,
+                latency_ms: event.latency_ms ?? 0,
+                timestamp: new Date().toISOString()
+              };
+
+              set((state) => ({
+                chatMessages: state.chatMessages.map((m) =>
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        isStreaming: false,
+                        citations,
+                        sources,
+                        webResults,
+                        external_url: webResults[0]?.url,
+                        notice:
+                          webResults.length &&
+                          (!m.notice ||
+                            m.notice.startsWith('Buscando información externa') ||
+                            m.notice.startsWith('No se encontraron resultados web'))
+                            ? `Respuesta complementada con ${webResults.length} fuente(s) web externa(s)${event.web_provider ? ` (${event.web_provider})` : ''}.`
+                            : m.notice,
+                        mode: event.mode ?? m.mode,
+                        confidence: event.confidence ?? m.confidence
+                      }
+                    : m
+                ),
+                latestChatSources: sources,
+                sessionHistory: [historyEntry, ...state.sessionHistory]
+              }));
+
+              if (topSource) {
+                set({ activeHighlightBlockId: topSource.id });
+              }
+
+              setRobotMood('apuntar_puntero', 2000);
+              setRobotSpeech(
+                webResults.length
+                  ? 'Respuesta sintetizada con citas oficiales y fuentes web externas.'
+                  : 'Respuesta sintetizada con citas del material oficial.',
+                4000
+              );
+            }
+          }
+
+          if (finished) break;
+          separatorIndex = buffer.indexOf('\n\n');
+        }
+      }
+
+      updateAssistant({ isStreaming: false });
+      set({ isSearching: false });
+
+    } catch (err: any) {
+      const aborted = err?.name === 'AbortError';
+
+      if (aborted) {
+        set((state) => ({
+          chatMessages: state.chatMessages.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  isStreaming: false,
+                  text: m.text || 'Generación detenida por el usuario.',
+                  notice: 'Generación detenida por el usuario.'
+                }
+              : m
+          ),
+          isSearching: false
+        }));
+        setRobotSpeech('Generación detenida.', 2500);
+      } else {
+        const errorMsg = 'No se pudo obtener respuesta del asistente. Revisa la conexión con el backend.';
+        set((state) => ({
+          chatMessages: state.chatMessages.map((m) =>
+            m.id === assistantId
+              ? { ...m, isStreaming: false, error: true, text: m.text || errorMsg }
+              : m
+          ),
+          isSearching: false,
+          searchErrorToast: errorMsg
+        }));
+        setRobotMood('sin_senal', 3000);
+        setRobotSpeech(errorMsg, 4000);
+      }
+
+    } finally {
+      if (chatAbortController === controller) chatAbortController = null;
+      set({ isSearching: false });
+      updateAssistant({ isStreaming: false });
+    }
+  },
+
+  stopChatStream: () => {
+    chatAbortController?.abort();
+    chatAbortController = null;
+  },
+
+  loadLlmStatus: async () => {
+    try {
+      const res = await fetch(apiUrl('/api/llm/status'));
+      if (!res.ok) return;
+      const data = await res.json();
+      set({
+        llmStatus: {
+          configured: Boolean(data.configured),
+          provider: data.provider,
+          model: data.model ?? 'desconocido',
+          mode: data.mode === 'llm' ? 'llm' : 'extractive'
+        }
+      });
+    } catch (err) {
+      console.error('Error consultando estado del LLM:', err);
+      set({
+        llmStatus: {
+          configured: false,
+          model: 'backend no disponible',
+          mode: 'extractive'
+        }
+      });
     }
   },
 

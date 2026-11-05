@@ -47,8 +47,30 @@ export const StickyNotesOverlay: React.FC = () => {
             {note.answer}
           </p>
 
-          {/* Enlace Externo si está disponible */}
-          {note.external_url && (
+          {/* Enlaces a las fuentes web reales */}
+          {note.web_results && note.web_results.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                Fuentes consultadas{note.provider ? ` · ${note.provider}` : ''}
+              </p>
+              {note.web_results.map((result) => (
+                <a
+                  key={result.id}
+                  href={result.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={result.snippet || result.title}
+                  className="flex items-start gap-1.5 text-[11px] text-cyan-400 hover:text-cyan-300 hover:underline"
+                >
+                  <ExternalLink className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span className="truncate">
+                    <span className="font-mono text-[9px] text-slate-500 mr-1">#{result.id}</span>
+                    {result.title || result.url}
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : note.external_url ? (
             <a
               href={note.external_url}
               target="_blank"
@@ -58,7 +80,7 @@ export const StickyNotesOverlay: React.FC = () => {
               <ExternalLink className="w-3 h-3" />
               <span className="truncate max-w-[240px]">Fuente: {note.external_url}</span>
             </a>
-          )}
+          ) : null}
         </div>
       ))}
     </div>

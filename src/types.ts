@@ -48,6 +48,14 @@ export interface HighlightBbox {
   bottom: number;
 }
 
+export interface WebResult {
+  id: string;
+  title: string;
+  url: string;
+  snippet?: string;
+  provider?: string;
+}
+
 export interface QueryResponse {
   source: 'local' | 'web' | 'timeout';
   target_block_id?: string;
@@ -57,6 +65,8 @@ export interface QueryResponse {
   pagina?: number;
   bbox?: HighlightBbox;
   external_url?: string;
+  web_results?: WebResult[];
+  provider?: string;
   confidence: number;
   query: string;
   latency_ms: number;
@@ -70,9 +80,25 @@ export interface StickyNote {
   answer: string;
   source: 'local' | 'web' | 'timeout';
   external_url?: string;
+  web_results?: WebResult[];
+  provider?: string;
   target_block_id?: string;
   block_title?: string;
   timestamp: string;
+}
+
+export interface ChatSource {
+  id: string;
+  title: string;
+  content: string;
+  excerpt?: string;
+  pagina?: number;
+  bbox?: HighlightBbox;
+  score?: number;
+  cited?: boolean;
+  source?: 'local' | 'web';
+  url?: string;
+  provider?: string;
 }
 
 export interface ChatMessage {
@@ -86,6 +112,20 @@ export interface ChatMessage {
   external_url?: string;
   confidence?: number;
   timestamp: string;
+  sources?: ChatSource[];
+  citations?: string[];
+  webResults?: WebResult[];
+  mode?: 'llm' | 'extractive';
+  isStreaming?: boolean;
+  notice?: string;
+  error?: boolean;
+}
+
+export interface LlmStatus {
+  configured: boolean;
+  provider?: string;
+  model: string;
+  mode: 'llm' | 'extractive';
 }
 
 export interface DownloadResponse {

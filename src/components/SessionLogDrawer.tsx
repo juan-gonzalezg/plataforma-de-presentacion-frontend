@@ -12,11 +12,16 @@ export const SessionLogDrawer: React.FC = () => {
       `# Bitácora de Dudas y Respuestas de la Sesión`,
       `Fecha: ${new Date().toLocaleDateString()} - Total de consultas: ${sessionHistory.length}\n`,
       ...sessionHistory.map((item, index) => {
+        const webLines = (item.web_results ?? [])
+          .map((r) => `  - [${r.id}] ${r.title}: ${r.url}`)
+          .join('\n');
         return `### ${index + 1}. Pregunta: "${item.query}"\n` +
           `- **Fuente:** ${item.source === 'local' ? 'Notas Oficiales' : 'Búsqueda Web Externa'}\n` +
+          (item.provider ? `- **Proveedor web:** ${item.provider}\n` : '') +
           `- **Confianza:** ${Math.round(item.confidence * 100)}% | **Latencia:** ${item.latency_ms}ms\n` +
           `- **Respuesta:** ${item.answer_summary}\n` +
           (item.external_url ? `- **URL Externa:** ${item.external_url}\n` : '') +
+          (webLines ? `- **Fuentes web:**\n${webLines}\n` : '') +
           `\n---`;
       })
     ];
