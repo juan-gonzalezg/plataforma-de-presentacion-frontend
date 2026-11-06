@@ -74,6 +74,7 @@ interface PresentationStore {
   setActiveHighlightBlockId: (id: string | null) => void;
   setActiveHighlightPdfTarget: (page: number | null, bbox: HighlightBbox | null) => void;
   askQuestion: (query: string) => Promise<QueryResponse | null>;
+  resolveWebQuestion: (stickyId: string, query: string, topicId: string) => Promise<void>;
   addStickyNote: (note: StickyNote) => void;
   removeStickyNote: (id: string) => void;
   sendChatMessage: (text: string) => Promise<void>;
@@ -182,6 +183,10 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
           robotMood: 'idle_atento',
           robotSpeechBubble: `Módulo cargado. Usa las flechas para navegar o 'N' para ver notas.`,
           latestChatSources: [],
+          // Cada módulo arranca sin foco heredado del anterior
+          activeHighlightBlockId: null,
+          activeHighlightPage: null,
+          activeHighlightBbox: null,
           chatMessages: [
             {
               id: 'init-msg',
@@ -290,28 +295,40 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   },
 
   setActiveHighlightBlockId: (id: string | null) => {
-    set({ activeHighlightBlockId: id });
+    // Un bloque Markdown y un recuadro PDF son objetivos excluyentes.
+    set({
+      activeHighlightBlockId: id,
+      ...(id ? { activeHighlightPage: null, activeHighlightBbox: null } : {})
+    });
   },
 
   setActiveHighlightPdfTarget: (page: number | null, bbox: HighlightBbox | null) => {
-    set({ activeHighlightPage: page, activeHighlightBbox: bbox });
+    set({
+      activeHighlightPage: page,
+      activeHighlightBbox: bbox,
+      ...(page ? { activeHighlightBlockId: null } : {})
+    });
   },
 
-  // Consulta del Spotlight: búsqueda local rápida o web real resumida por el LLM.
-  // El backend puede tardar hasta ~18 s cuando consulta un proveedor web.
+  // Consulta del Spotlight (HU-AIQ-01 + HU-RES-01):
+  // - La espera bloqueante máxima es de 4 s (abort controller).
+  // - La respuesta local se sintetiza con el LLM en el backend (con respaldo
+  //   extractivo) y se muestra como Sticky Note oficial.
+  // - Si la pregunta requiere web, /api/ask responde pending_web y la búsqueda
+  //   real continúa en segundo plano sin bloquear la presentación.
   askQuestion: async (query: string): Promise<QueryResponse | null> => {
     const { selectedTopic, currentSlideIndex, setRobotMood, setRobotSpeech } = get();
     if (!selectedTopic || !query.trim()) return null;
 
     set({ isSearching: true, searchErrorToast: null });
     setRobotMood('buscar_antena');
-    setRobotSpeech('Buscando en notas oficiales y fuentes web...');
+    setRobotSpeech('Consultando las notas oficiales...');
 
     const currentSlide = selectedTopic.slides[currentSlideIndex];
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => {
       abortController.abort();
-    }, 20000); // 20 s: cubre búsqueda web + resumen del LLM
+    }, 4000); // HU-RES-01: límite estricto de 4 s para la espera visible
 
     try {
       const res = await fetch(apiUrl('/api/ask'), {
@@ -320,7 +337,9 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
         body: JSON.stringify({
           topic_id: selectedTopic.id,
           query: query.trim(),
-          current_slide_id: currentSlide?.id
+          current_slide_id: currentSlide?.id,
+          // Fase 1 rápida: si hace falta web, el backend responde pending_web.
+          defer_web: true
         }),
         signal: abortController.signal
       });
@@ -332,45 +351,66 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       }
 
       const data: QueryResponse = await res.json();
+      const timestamp = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
 
-      // Guardar en bitácora de sesión
-      set((state) => ({
-        sessionHistory: [data, ...state.sessionHistory],
-        isSearching: false
-      }));
+      if (data.source === 'local') {
+        // Nota local con la síntesis del LLM (o el extracto de respaldo).
+        const localSticky: StickyNote = {
+          id: `sticky-${Date.now()}`,
+          query: data.query,
+          answer: data.answer_summary,
+          source: 'local',
+          target_block_id: data.target_block_id,
+          block_title: data.block_title,
+          mode: data.mode,
+          timestamp
+        };
 
-      if (data.source === 'local' && data.pagina && data.bbox) {
-        // Módulo basado en PDF: recuadro precalculado sobre página + bbox
-        set({
-          activeHighlightPage: data.pagina,
-          activeHighlightBbox: data.bbox,
-          activeHighlightBlockId: data.target_block_id ?? null,
-          isDrawerOpen: true,
-        });
-        setRobotMood('apuntar_puntero', 2000);
-        setRobotSpeech(`¡Respuesta encontrada en la página ${data.pagina}!`, 5000);
+        set((state) => ({
+          sessionHistory: [data, ...state.sessionHistory],
+          stickyNotes: [localSticky, ...state.stickyNotes.slice(0, 3)],
+          isSearching: false
+        }));
 
-      } else if (data.source === 'local' && data.target_block_id) {
-        // Módulo basado en notas Markdown -> Smart Highlight de bloque
-        set({
-          activeHighlightBlockId: data.target_block_id,
-          activeHighlightPage: null,
-          activeHighlightBbox: null,
-          isDrawerOpen: true, // Abrir drawer de notas
-        });
-        setRobotMood('apuntar_puntero', 2000);
-        setRobotSpeech(`¡Respuesta en notas oficiales! (${data.block_title})`, 5000);
+        if (data.pagina && data.bbox) {
+          // Módulo basado en PDF: recuadro precalculado sobre página + bbox
+          set({
+            activeHighlightPage: data.pagina,
+            activeHighlightBbox: data.bbox,
+            activeHighlightBlockId: null,
+            isDrawerOpen: true,
+          });
+          setRobotMood('apuntar_puntero', 2000);
+          setRobotSpeech(`¡Respuesta encontrada en la página ${data.pagina}!`, 5000);
+        } else if (data.target_block_id) {
+          // Módulo basado en notas Markdown -> Smart Highlight de bloque
+          set({
+            activeHighlightBlockId: data.target_block_id,
+            activeHighlightPage: null,
+            activeHighlightBbox: null,
+            isDrawerOpen: true,
+          });
+          setRobotMood('apuntar_puntero', 2000);
+          setRobotSpeech(
+            data.mode === 'llm'
+              ? `Respuesta sintetizada desde las notas oficiales (${data.block_title}).`
+              : `Extracto de las notas oficiales (${data.block_title}).`,
+            5000
+          );
 
-        // Desplazar el scroll hacia el bloque resaltado
-        setTimeout(() => {
-          const el = document.getElementById(data.target_block_id!);
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 150);
+          setTimeout(() => {
+            const el = document.getElementById(data.target_block_id!);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 150);
+        }
 
       } else if (data.source === 'web') {
-        // Encontrado en búsqueda web real -> Generar Sticky Note con enlaces
+        // Nota adhesiva web: puede quedar pendiente mientras se busca en vivo.
         const newSticky: StickyNote = {
           id: `sticky-${Date.now()}`,
           query: data.query,
@@ -379,25 +419,38 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
           external_url: data.external_url ?? data.web_results?.[0]?.url,
           web_results: data.web_results ?? [],
           provider: data.provider,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          pending: Boolean(data.pending_web),
+          timestamp
         };
 
         set((state) => ({
-          stickyNotes: [newSticky, ...state.stickyNotes.slice(0, 3)] // máximo 4 sticky notes en pantalla
+          stickyNotes: [newSticky, ...state.stickyNotes.slice(0, 3)],
+          isSearching: false,
+          // La entrada definitiva de la bitácora se añade al resolver la web.
+          sessionHistory: data.pending_web
+            ? state.sessionHistory
+            : [data, ...state.sessionHistory]
         }));
 
-        setRobotMood('celebrar', 2500);
-        setRobotSpeech(
-          data.web_results?.length
-            ? `Respuesta externa sintetizada con ${data.web_results.length} fuentes web.`
-            : 'No se encontraron resultados web para esa consulta.',
-          4000
-        );
+        if (data.pending_web) {
+          // HU-RES-01: se libera el teclado y la web sigue en segundo plano.
+          setRobotMood('buscar_antena');
+          setRobotSpeech('Buscando información externa en la web...', 5000);
+          void get().resolveWebQuestion(newSticky.id, data.query, selectedTopic.id);
+        } else {
+          setRobotMood('celebrar', 2500);
+          setRobotSpeech(
+            data.web_results?.length
+              ? `Respuesta externa sintetizada con ${data.web_results.length} fuentes web.`
+              : 'No se encontraron resultados web para esa consulta.',
+            4000
+          );
+        }
 
       } else if (data.source === 'timeout') {
         const timeoutMsg =
           data.answer_summary || 'La búsqueda tardó demasiado. Inténtalo de nuevo.';
-        set({ searchErrorToast: timeoutMsg });
+        set({ isSearching: false, searchErrorToast: timeoutMsg });
         setRobotMood('sin_senal', 3000);
         setRobotSpeech(timeoutMsg, 4000);
 
@@ -406,6 +459,8 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
             set({ searchErrorToast: null });
           }
         }, 4000);
+      } else {
+        set({ isSearching: false });
       }
 
       return data;
@@ -414,9 +469,9 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       clearTimeout(timeoutId);
       console.warn('Error o Timeout de consulta RAG:', err);
 
-      // HU-RES-01: Aviso no invasivo y postura sin_senal
+      // HU-RES-01: aviso no invasivo y postura sin_senal
       const errorMsg = 'Red lenta o sin conexión. Continúa con la presentación.';
-      set({ 
+      set({
         isSearching: false,
         searchErrorToast: errorMsg,
         isSpotlightOpen: false // Cierra modal y devuelve foco al expositor
@@ -432,6 +487,83 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       }, 4000);
 
       return null;
+    }
+  },
+
+  // Fase 2 del Spotlight: búsqueda web real sin bloquear la presentación.
+  // Actualiza la Sticky Note pendiente cuando llegan los resultados.
+  resolveWebQuestion: async (stickyId: string, query: string, topicId: string) => {
+    const { setRobotMood, setRobotSpeech } = get();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 25000); // cubre el WEB_ANSWER_TIMEOUT del backend (18 s) + margen
+
+    try {
+      const res = await fetch(apiUrl('/api/web/ask'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic_id: topicId, query }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`El servidor respondió ${res.status}`);
+      }
+
+      const data: QueryResponse = await res.json();
+      const timestamp = new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      set((state) => ({
+        stickyNotes: state.stickyNotes.map((note) =>
+          note.id === stickyId
+            ? {
+                ...note,
+                pending: false,
+                answer: data.answer_summary,
+                source: data.source === 'local' ? 'web' : data.source,
+                external_url: data.external_url ?? data.web_results?.[0]?.url,
+                web_results: data.web_results ?? [],
+                provider: data.provider,
+                timestamp
+              }
+            : note
+        ),
+        sessionHistory: [data, ...state.sessionHistory]
+      }));
+
+      if (data.web_results && data.web_results.length > 0) {
+        setRobotMood('celebrar', 2500);
+        setRobotSpeech(
+          `Fuentes web listas: ${data.web_results.length} enlaces externos.`,
+          4000
+        );
+      } else {
+        setRobotMood('sin_senal', 3000);
+        setRobotSpeech('No se encontraron resultados web para esa consulta.', 4000);
+      }
+
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const aborted = err instanceof Error && err.name === 'AbortError';
+      const message = aborted
+        ? 'La búsqueda web no terminó a tiempo. Puedes continuar con la presentación.'
+        : 'No se pudo completar la búsqueda web. Revisa la conexión.';
+
+      set((state) => ({
+        stickyNotes: state.stickyNotes.map((note) =>
+          note.id === stickyId
+            ? { ...note, pending: false, answer: message, source: 'timeout' }
+            : note
+        )
+      }));
+      setRobotMood('sin_senal', 3000);
+      setRobotSpeech(message, 4000);
     }
   },
 
@@ -650,8 +782,28 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
                 sessionHistory: [historyEntry, ...state.sessionHistory]
               }));
 
-              if (topSource) {
-                set({ activeHighlightBlockId: topSource.id });
+              if (topSource?.pagina) {
+                // Módulo basado en PDF: foco en página + recuadro (si existe).
+                set({
+                  activeHighlightPage: topSource.pagina,
+                  activeHighlightBbox: topSource.bbox ?? null,
+                  activeHighlightBlockId: null
+                });
+              } else if (topSource) {
+                // Módulo con notas Markdown: foco en el bloque citado.
+                set({
+                  activeHighlightBlockId: topSource.id,
+                  activeHighlightPage: null,
+                  activeHighlightBbox: null
+                });
+              } else {
+                // Respuesta solo web (o sin fuentes locales): no dejamos un
+                // resaltado anterior apuntando a una cita que ya no aplica.
+                set({
+                  activeHighlightBlockId: null,
+                  activeHighlightPage: null,
+                  activeHighlightBbox: null
+                });
               }
 
               setRobotMood('apuntar_puntero', 2000);

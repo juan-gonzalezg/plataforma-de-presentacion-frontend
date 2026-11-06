@@ -67,6 +67,9 @@ export interface QueryResponse {
   external_url?: string;
   web_results?: WebResult[];
   provider?: string;
+  pending_web?: boolean;
+  mode?: 'llm' | 'extractive';
+  citations?: string[];
   confidence: number;
   query: string;
   latency_ms: number;
@@ -84,6 +87,8 @@ export interface StickyNote {
   provider?: string;
   target_block_id?: string;
   block_title?: string;
+  pending?: boolean;
+  mode?: 'llm' | 'extractive';
   timestamp: string;
 }
 

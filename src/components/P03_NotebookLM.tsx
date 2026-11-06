@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Sparkles, 
-  BookOpen, 
-  ArrowLeft, 
-  FileText, 
-  Layers, 
-  Bot, 
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import {
+  Sparkles,
+  BookOpen,
+  ArrowLeft,
+  FileText,
+  Layers,
+  Bot,
   CornerDownLeft,
   Square,
   Cpu,
@@ -16,6 +16,21 @@ import {
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
 import { AccessibilityControls } from './AccessibilityControls';
+import { SourceDocument } from './SourceDocument';
+import { PdfHighlightViewer } from './PdfHighlightViewer';
+import { parseNotesBlocks, extractNotesTitle } from '../lib/notes';
+import { ChatSource, HighlightBbox } from '../types';
+
+type RightTab = 'documento' | 'fragmentos' | 'web';
+
+interface FocusTarget {
+  id: string;
+  title?: string;
+  content?: string;
+  pagina?: number;
+  bbox?: HighlightBbox;
+  source?: 'local' | 'web';
+}
 
 export const P03_NotebookLM: React.FC = () => {
   const {
@@ -29,6 +44,9 @@ export const P03_NotebookLM: React.FC = () => {
     robotMood,
     setRobotMood,
     setActiveHighlightBlockId,
+    setActiveHighlightPdfTarget,
+    activeHighlightBlockId,
+    activeHighlightPage,
     latestChatSources,
     stopChatStream,
     loadLlmStatus,
@@ -36,8 +54,8 @@ export const P03_NotebookLM: React.FC = () => {
   } = usePresentationStore();
 
   const [inputMessage, setInputMessage] = useState('');
+  const [rightTab, setRightTab] = useState<RightTab>('documento');
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [selectedBlockDetail, setSelectedBlockDetail] = useState<string | null>(null);
 
   // Estado del proveedor LLM (para indicar si hay generación real o modo extractivo)
   useEffect(() => {
@@ -49,41 +67,120 @@ export const P03_NotebookLM: React.FC = () => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, isSearching]);
 
+  // Reconstrucción del texto base (módulos con notas Markdown)
+  const rawMarkdown = selectedTopic?.notes_markdown ?? '';
+  const notesBlocks = useMemo(() => parseNotesBlocks(rawMarkdown), [rawMarkdown]);
+  const notesTitle = useMemo(() => extractNotesTitle(rawMarkdown), [rawMarkdown]);
+
+  // Al cambiar de módulo volvemos a la pestaña del documento
+  useEffect(() => {
+    setRightTab('documento');
+  }, [selectedTopic?.id]);
+
+  // Si una cita activa un bloque o una página, mostramos el documento
+  useEffect(() => {
+    if (activeHighlightBlockId || activeHighlightPage) {
+      setRightTab('documento');
+    }
+  }, [activeHighlightBlockId, activeHighlightPage]);
+
+  // Desplazamiento al bloque citado cuando el foco llega desde el chat
+  useEffect(() => {
+    if (rightTab !== 'documento' || !activeHighlightBlockId) return;
+    const timer = setTimeout(() => {
+      document
+        .getElementById(`p03-${activeHighlightBlockId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [activeHighlightBlockId, rightTab]);
+
   if (!selectedTopic) return null;
 
   const currentSlide = selectedTopic.slides[currentSlideIndex];
+  const hasMarkdownNotes = notesBlocks.length > 0;
 
-  // Extraer bloques de notas para la columna de fuentes documentales
-  // (aplica solo a temas con notes_markdown; los módulos basados en PDF
-  // muestran esta columna vacía por ahora — ver nota de seguimiento)
-  const rawMarkdown = selectedTopic.notes_markdown ?? '';
-  const blocksPattern = /<div\s+id="([^"]+)"[^>]*>(.*?)<\/div>/gs;
-  const sourceBlocks: { id: string; title: string; content: string }[] = [];
-  let match;
-  while ((match = blocksPattern.exec(rawMarkdown)) !== null) {
-    const raw = match[2].trim();
-    const titleMatch = /###\s*([^\n]+)/.exec(raw);
-    sourceBlocks.push({
-      id: match[1],
-      title: titleMatch ? titleMatch[1].trim() : `Sección ${match[1]}`,
-      content: raw.replace(/###\s*[^\n]+/, '').replace(/[\*\_#`]/g, '').trim()
-    });
-  }
-
-  const webDisplaySources = latestChatSources.filter((s) => s.source === 'web');
   const localChatSources = latestChatSources.filter((s) => s.source !== 'web');
+  const webChatSources = latestChatSources.filter((s) => s.source === 'web');
 
-  // Si el módulo no tiene notas Markdown (p. ej. PDFs de Supabase), mostramos
-  // las fuentes recuperadas por el RAG durante la conversación. Si ya hubo una
-  // consulta, priorizamos esos fragmentos (con su marca de "citada"); si no,
-  // mostramos el índice completo de notas del módulo.
-  const displaySources: {
-    id: string;
-    title: string;
-    content: string;
-    pagina?: number;
-    cited?: boolean;
-  }[] = localChatSources.length > 0 ? localChatSources : sourceBlocks;
+  // Fuentes web de la última respuesta (aunque el chat ya haya empezado otra)
+  const lastAssistantWithWeb = [...chatMessages]
+    .reverse()
+    .find(
+      (m) =>
+        m.sender === 'assistant' &&
+        ((m.sources ?? []).some((s) => s.source === 'web') || (m.webResults?.length ?? 0) > 0)
+    );
+
+  const webDisplaySources: ChatSource[] =
+    webChatSources.length > 0
+      ? webChatSources
+      : (lastAssistantWithWeb?.sources ?? []).filter((s) => s.source === 'web').length > 0
+        ? (lastAssistantWithWeb?.sources ?? []).filter((s) => s.source === 'web')
+        : (lastAssistantWithWeb?.webResults ?? []).map((r) => ({
+            id: r.id,
+            title: r.title,
+            content: r.snippet ?? '',
+            excerpt: r.snippet,
+            source: 'web',
+            url: r.url,
+            provider: r.provider
+          }));
+
+  // En la pestaña Fragmentos mostramos lo recuperado por RAG; si aún no hay
+  // consulta, el índice completo de bloques del texto base.
+  const fragmentSources: FocusTarget[] =
+    localChatSources.length > 0
+      ? localChatSources.map((s) => ({
+          id: s.id,
+          title: s.title,
+          content: s.excerpt || s.content,
+          pagina: s.pagina,
+          bbox: s.bbox,
+          source: 'local'
+        }))
+      : notesBlocks.map((b) => ({
+          id: b.id,
+          title: b.title,
+          content: b.content,
+          source: 'local'
+        }));
+
+  const citedIds = new Set(
+    localChatSources.filter((s) => s.cited).map((s) => s.id)
+  );
+
+  // Vista previa en texto plano para las tarjetas de fragmentos.
+  const plainPreview = (text?: string) =>
+    (text ?? '')
+      .replace(/###\s*/g, '')
+      .replace(/[*_`#>]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  // Lleva el foco al fragmento correcto según el tipo de módulo:
+  // PDF -> página + bbox; Markdown -> bloque resaltado.
+  const focusSource = (source: FocusTarget) => {
+    if (source.source === 'web') {
+      setRightTab('web');
+      return;
+    }
+
+    setRightTab('documento');
+    setRobotMood('apuntar_puntero', 1800);
+
+    if (source.pagina) {
+      setActiveHighlightPdfTarget(source.pagina, source.bbox ?? null);
+      return;
+    }
+
+    setActiveHighlightBlockId(source.id);
+    setTimeout(() => {
+      document
+        .getElementById(`p03-${source.id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 160);
+  };
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +192,6 @@ export const P03_NotebookLM: React.FC = () => {
 
   return (
     <div className="h-screen w-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden select-none">
-      
       {/* Barra Superior NotebookLM */}
       <header className="h-14 px-6 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-3">
@@ -126,8 +222,7 @@ export const P03_NotebookLM: React.FC = () => {
 
       {/* Cuerpo Principal de Pantalla Dividida (Wireframe Vista 2) */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-        
-        {/* COLUMNA IZQUIERDA: Hilo de Chat con la IA (6 columnas) */}
+        {/* COLUMNA IZQUIERDA: Hilo de Chat con la IA (7 columnas) */}
         <section className="lg:col-span-7 flex flex-col h-full border-r border-slate-800/80 bg-slate-900/50">
           {/* Header del Chat */}
           <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
@@ -155,9 +250,7 @@ export const P03_NotebookLM: React.FC = () => {
                     : 'Modo extractivo'
                   : 'Verificando motor...'}
               </span>
-              <span className="text-xs text-slate-400 font-mono hidden sm:inline">
-                RAG + citas
-              </span>
+              <span className="text-xs text-slate-400 font-mono hidden sm:inline">RAG + citas</span>
             </div>
           </div>
 
@@ -231,14 +324,8 @@ export const P03_NotebookLM: React.FC = () => {
                         ) : (
                           <button
                             key={source.id}
-                            onClick={() => {
-                              setSelectedBlockDetail(source.id);
-                              setActiveHighlightBlockId(source.id);
-                              document
-                                .getElementById(`source-${source.id}`)
-                                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }}
-                            title={source.title}
+                            onClick={() => focusSource(source)}
+                            title={`${source.title}${source.pagina ? ` — página ${source.pagina}` : ''}`}
                             className={`px-2 py-0.5 rounded border font-mono text-[11px] flex items-center gap-1 transition-colors ${
                               isCited
                                 ? 'bg-amber-500/15 border-amber-400/40 text-amber-300 hover:bg-amber-500/25'
@@ -252,7 +339,9 @@ export const P03_NotebookLM: React.FC = () => {
                         );
                       })}
 
-                      {msg.webResults && msg.webResults.length > 0 && !msg.sources.some((s) => s.source === 'web') && (
+                      {msg.webResults &&
+                        msg.webResults.length > 0 &&
+                        !msg.sources.some((s) => s.source === 'web') &&
                         msg.webResults.map((result) => (
                           <a
                             key={result.id}
@@ -266,8 +355,7 @@ export const P03_NotebookLM: React.FC = () => {
                             #{result.id}
                             <ExternalLink className="w-2.5 h-2.5 opacity-70" />
                           </a>
-                        ))
-                      )}
+                        ))}
 
                       {msg.mode && (
                         <span className="text-[10px] text-slate-500 font-mono ml-1">
@@ -336,9 +424,8 @@ export const P03_NotebookLM: React.FC = () => {
           </form>
         </section>
 
-        {/* COLUMNA DERECHA: Lámina Minimizada + Fuentes Documentales & Cuartel del Robot (5 columnas) */}
+        {/* COLUMNA DERECHA: Lámina Minimizada + Documento/Fuentes + Robot (5 columnas) */}
         <section className="lg:col-span-5 flex flex-col h-full bg-slate-950/90 overflow-hidden">
-          
           {/* Columna Derecha Sup: Lámina Activa Minimizada */}
           <div className="p-4 border-b border-slate-800 bg-slate-900/60 shrink-0">
             <div className="flex items-center justify-between mb-2">
@@ -382,114 +469,199 @@ export const P03_NotebookLM: React.FC = () => {
             </div>
           </div>
 
-          {/* Columna Derecha Inf: Fuentes Documentales & Cuartel del Robot */}
-          <div className="flex-1 flex flex-col p-4 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-purple-400" /> Fuentes Documentales{" "}
-                {sourceBlocks.length > 0 ? "(RAG Markdown)" : "(RAG en vivo)"}
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">
-                {displaySources.length} bloques
-              </span>
-            </div>
+          {/* Pestañas del panel derecho */}
+          <div className="flex items-center gap-1 px-4 pt-3 shrink-0">
+            <button
+              onClick={() => setRightTab('documento')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+                rightTab === 'documento'
+                  ? 'bg-cyan-500/15 border-cyan-400/50 text-cyan-200'
+                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" /> Documento
+            </button>
+            <button
+              onClick={() => setRightTab('fragmentos')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+                rightTab === 'fragmentos'
+                  ? 'bg-purple-500/15 border-purple-400/50 text-purple-200'
+                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" /> Fragmentos
+              <span className="font-mono text-[10px] text-slate-400">{fragmentSources.length}</span>
+            </button>
+            <button
+              onClick={() => setRightTab('web')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
+                rightTab === 'web'
+                  ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-200'
+                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" /> Web
+              {webDisplaySources.length > 0 && (
+                <span className="font-mono text-[10px] text-slate-400">
+                  {webDisplaySources.length}
+                </span>
+              )}
+            </button>
+          </div>
 
-            {/* Lista de Fuentes RAG */}
-            {displaySources.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center px-5 gap-2 text-slate-500 mb-3">
-                <FileText className="w-7 h-7 text-slate-600" />
-                <p className="text-xs leading-relaxed">
-                  Aún no hay fragmentos recuperados. Haz una pregunta al asistente y aquí
-                  aparecerán las fuentes del texto base que sustentan la respuesta.
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 mb-3">
-                {displaySources.map((b) => (
-                  <div
-                    key={b.id}
-                    id={`source-${b.id}`}
-                    onClick={() => setSelectedBlockDetail(selectedBlockDetail === b.id ? null : b.id)}
-                    className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                      selectedBlockDetail === b.id
-                        ? 'bg-cyan-950/40 border-cyan-400 shadow-md shadow-cyan-500/10'
-                        : 'bg-slate-900/70 border-slate-800/80 hover:border-slate-700 text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="font-bold text-slate-200 truncate">{b.title}</span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {b.pagina ? (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                            p.{b.pagina}
-                          </span>
-                        ) : null}
-                        {b.cited ? (
-                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-400/40">
-                            citada
-                          </span>
-                        ) : null}
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-950 text-cyan-400 border border-slate-800">
-                          #{b.id}
-                        </span>
-                      </div>
-                    </div>
-                    <p
-                      className={`text-[11px] leading-relaxed ${
-                        selectedBlockDetail === b.id
-                          ? 'text-slate-300 whitespace-pre-wrap'
-                          : 'text-slate-400 line-clamp-2'
-                      }`}
-                    >
-                      {b.content}
+          {/* Contenido de la pestaña activa */}
+          <div className="flex-1 min-h-0 px-4 pt-2.5 pb-1 overflow-hidden">
+            {rightTab === 'documento' &&
+              (hasMarkdownNotes ? (
+                <div className="flex h-full min-h-0 flex-col">
+                  <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
+                    <span className="truncate text-[11px] font-semibold text-slate-300">
+                      {notesTitle ?? 'Texto base del módulo'}
+                    </span>
+                    <span className="shrink-0 font-mono text-[10px] text-slate-500">
+                      {notesBlocks.length} bloques
+                    </span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto pr-1">
+                    <SourceDocument
+                      blocks={notesBlocks}
+                      activeBlockId={activeHighlightBlockId}
+                      idPrefix="p03-"
+                      onSelectBlock={(id) =>
+                        focusSource({ id, title: id, source: 'local' })
+                      }
+                    />
+                  </div>
+                </div>
+              ) : (
+                <PdfHighlightViewer />
+              ))}
+
+            {rightTab === 'fragmentos' && (
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="mb-2 flex shrink-0 items-center justify-between border-b border-slate-800 pb-1.5">
+                  <span className="text-[11px] font-semibold text-slate-300">
+                    {localChatSources.length > 0
+                      ? 'Fragmentos recuperados por RAG'
+                      : 'Índice de bloques del texto base'}
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {fragmentSources.length} bloques
+                  </span>
+                </div>
+
+                {fragmentSources.length === 0 ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-2 px-5 text-center text-slate-500">
+                    <FileText className="h-7 w-7 text-slate-600" />
+                    <p className="text-xs leading-relaxed">
+                      Aún no hay fragmentos recuperados. Haz una pregunta al asistente y aquí
+                      aparecerán las fuentes del texto base que sustentan la respuesta.
                     </p>
                   </div>
-                ))}
+                ) : (
+                  <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                    {fragmentSources.map((fragment) => {
+                      const isActive = fragment.id === activeHighlightBlockId;
+                      const isCited = citedIds.has(fragment.id);
+
+                      return (
+                        <button
+                          key={fragment.id}
+                          onClick={() => focusSource(fragment)}
+                          className={`w-full rounded-xl border p-3 text-left text-xs transition-all ${
+                            isActive
+                              ? 'border-amber-400 bg-amber-500/15 shadow-md shadow-amber-500/10'
+                              : 'border-slate-800/80 bg-slate-900/70 text-slate-300 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <span className="truncate font-bold text-slate-200">
+                              {fragment.title ?? fragment.id}
+                            </span>
+                            <div className="flex shrink-0 items-center gap-1">
+                              {fragment.pagina ? (
+                                <span className="rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 font-mono text-[9px] text-slate-300">
+                                  p.{fragment.pagina}
+                                </span>
+                              ) : null}
+                              {isCited ? (
+                                <span className="rounded border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] text-amber-300">
+                                  citada
+                                </span>
+                              ) : null}
+                              <span className="rounded border border-slate-800 bg-slate-950 px-1.5 py-0.5 font-mono text-[9px] text-cyan-400">
+                                #{fragment.id}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="line-clamp-2 text-[11px] leading-relaxed text-slate-400">
+                            {plainPreview(fragment.content) || fragment.title || fragment.id}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Fuentes web reales usadas para complementar la respuesta */}
-            {webDisplaySources.length > 0 && (
-              <div className="shrink-0 mb-3 border-t border-slate-800 pt-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5 text-emerald-400" /> Fuentes Web Externas
+            {rightTab === 'web' && (
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="mb-2 flex shrink-0 items-center justify-between border-b border-slate-800 pb-1.5">
+                  <span className="text-[11px] font-semibold text-slate-300">
+                    Fuentes Web Externas
                   </span>
-                  <span className="text-[10px] font-mono text-slate-500">
+                  <span className="font-mono text-[10px] text-slate-500">
                     {webDisplaySources.length}
                   </span>
                 </div>
-                <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
-                  {webDisplaySources.map((source) => (
-                    <a
-                      key={source.id}
-                      href={source.url || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={source.title}
-                      className="block p-2 rounded-lg border border-emerald-500/25 bg-emerald-950/20 hover:bg-emerald-900/30 text-[11px] transition-colors"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-emerald-200 font-semibold truncate">
-                          {source.title}
-                        </span>
-                        <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-950 text-emerald-300 border border-slate-800 shrink-0">
-                          #{source.id}
-                        </span>
-                      </div>
-                      <p className="text-slate-400 line-clamp-2 mt-0.5">{source.content}</p>
-                      <p className="text-[9px] text-emerald-400/80 truncate mt-1 flex items-center gap-1">
-                        <ExternalLink className="w-2.5 h-2.5 shrink-0" />
-                        {source.url}
-                      </p>
-                    </a>
-                  ))}
-                </div>
+
+                {webDisplaySources.length === 0 ? (
+                  <div className="flex flex-1 flex-col items-center justify-center gap-2 px-5 text-center text-slate-500">
+                    <Globe className="h-7 w-7 text-slate-600" />
+                    <p className="text-xs leading-relaxed">
+                      No hay fuentes web en esta conversación. Cuando una pregunta no esté en el
+                      texto base y la búsqueda web esté configurada, aquí verás los enlaces reales
+                      usados para complementar la respuesta.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex-1 space-y-1.5 overflow-y-auto pr-1">
+                    {webDisplaySources.map((source) => (
+                      <a
+                        key={source.id}
+                        href={source.url || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={source.title}
+                        className="block rounded-lg border border-emerald-500/25 bg-emerald-950/20 p-2 text-[11px] transition-colors hover:bg-emerald-900/30"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-semibold text-emerald-200">
+                            {source.title}
+                          </span>
+                          <span className="shrink-0 rounded border border-slate-800 bg-slate-950 px-1.5 py-0.5 font-mono text-[9px] text-emerald-300">
+                            #{source.id}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-slate-400">
+                          {source.excerpt || source.content}
+                        </p>
+                        <p className="mt-1 flex items-center gap-1 truncate text-[9px] text-emerald-400/80">
+                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                          {source.url}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
+          </div>
 
-            {/* CUARTEL DEL ROBOT: Buscador Bibliotecario Fijo */}
-            <div className="p-3 bg-slate-900/90 border border-purple-500/30 rounded-2xl flex items-center gap-3 shrink-0 shadow-lg">
+          {/* CUARTEL DEL ROBOT: Buscador Bibliotecario Fijo */}
+          <div className="p-3 shrink-0">
+            <div className="flex items-center gap-3 rounded-2xl border border-purple-500/30 bg-slate-900/90 p-3 shadow-lg">
               <RobotAvatar
                 mood={robotMood}
                 size="sm"
@@ -498,15 +670,22 @@ export const P03_NotebookLM: React.FC = () => {
               <div className="text-xs">
                 <p className="font-bold text-purple-300">Cuartel del Robot: Bibliotecario</p>
                 <p className="text-[11px] text-slate-400">
-                  {displaySources.length > 0
-                    ? `Mostrando ${displaySources.length} fragmentos recuperados del texto base.`
-                    : 'Esperando una consulta para recuperar fragmentos del texto base.'}
+                  {rightTab === 'documento'
+                    ? hasMarkdownNotes
+                      ? `Documento continuo con ${notesBlocks.length} bloques anclados al RAG.`
+                      : activeHighlightPage
+                        ? `Visor PDF enfocado en la página ${activeHighlightPage}.`
+                        : 'Visor del PDF oficial del módulo.'
+                    : rightTab === 'fragmentos'
+                      ? `${fragmentSources.length} fragmentos del texto base disponibles.`
+                      : webDisplaySources.length > 0
+                        ? `${webDisplaySources.length} fuentes web externas citadas.`
+                        : 'Sin fuentes web en esta conversación.'}
                 </p>
               </div>
             </div>
           </div>
         </section>
-
       </div>
     </div>
   );

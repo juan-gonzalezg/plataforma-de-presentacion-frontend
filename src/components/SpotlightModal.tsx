@@ -136,12 +136,12 @@ export const SpotlightModal: React.FC = () => {
           </div>
 
           {/* Resumen de Política RAG */}
-          <div className="mt-4 flex items-center justify-between text-[11px] text-slate-500">
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-[11px] text-slate-500">
             <span className="flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-cyan-400" /> Prioridad: Documento oficial de notas (Smart Highlight)
+              <Sparkles className="w-3 h-3 text-cyan-400" /> Prioridad: notas oficiales (síntesis en menos de 4 s)
             </span>
             <span className="flex items-center gap-1">
-              <Globe className="w-3 h-3 text-emerald-400" /> Fallback automático a búsqueda web externa
+              <Globe className="w-3 h-3 text-emerald-400" /> Web en segundo plano si no está en el texto base
             </span>
           </div>
         </form>

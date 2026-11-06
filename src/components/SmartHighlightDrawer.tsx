@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { X, BookOpen, Sparkles, Pin, Download, Loader2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { X, BookOpen, Download, Loader2 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
 import { PdfHighlightViewer } from './PdfHighlightViewer';
+import { SourceDocument } from './SourceDocument';
+import { parseNotesBlocks } from '../lib/notes';
 
 export const SmartHighlightDrawer: React.FC = () => {
   const { 
@@ -18,6 +20,13 @@ export const SmartHighlightDrawer: React.FC = () => {
 
   const [isDownloading, setIsDownloading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Reconstruye el documento continuo a partir de los bloques anotados.
+  // El parseo se memoiza para no repetirlo en cada render.
+  const notesBlocks = useMemo(
+    () => parseNotesBlocks(selectedTopic?.notes_markdown ?? ''),
+    [selectedTopic?.notes_markdown]
+  );
 
   const handleDownload = async () => {
     if (!selectedTopic || isDownloading) return;
@@ -55,18 +64,6 @@ export const SmartHighlightDrawer: React.FC = () => {
   if (!selectedTopic) return null;
 
   const hasMarkdownNotes = Boolean(selectedTopic.notes_markdown);
-
-  // Separar bloques por div id="block-X" (solo aplica a temas con notas Markdown)
-  const rawMarkdown = selectedTopic.notes_markdown ?? '';
-  const blocksPattern = /<div\s+id="([^"]+)"[^>]*>(.*?)<\/div>/gs;
-  const blocks: { id: string; content: string }[] = [];
-  let match;
-  while ((match = blocksPattern.exec(rawMarkdown)) !== null) {
-    blocks.push({
-      id: match[1],
-      content: match[2].trim()
-    });
-  }
 
   return (
     <aside 
@@ -157,42 +154,8 @@ export const SmartHighlightDrawer: React.FC = () => {
               Fundamentación Teórica Oficial
             </p>
 
-            {blocks.length > 0 ? (
-              blocks.map((b) => {
-                const isHighlighted = b.id === activeHighlightBlockId;
-                return (
-                  <div
-                    key={b.id}
-                    id={b.id}
-                    className={`p-4 rounded-xl transition-all duration-500 border ${
-                      isHighlighted
-                        ? 'smart-highlight-active bg-amber-500/15 border-amber-400 shadow-lg shadow-amber-500/20'
-                        : 'bg-slate-850/60 border-slate-800/70 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700/60">
-                        #{b.id}
-                      </span>
-                      {isHighlighted && (
-                        <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-400/40 animate-pulse">
-                          <Sparkles className="w-3 h-3" /> Resaltado RAG
-                        </span>
-                      )}
-                    </div>
-
-                    <div 
-                      className="text-sm leading-relaxed text-slate-300 space-y-2"
-                      dangerouslySetInnerHTML={{ 
-                        __html: b.content
-                          .replace(/###\s*(.*)/g, '<h4 class="text-base font-bold text-slate-100 mt-1 mb-2">$1</h4>')
-                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-cyan-300 font-semibold">$1</strong>')
-                          .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-slate-900 font-mono text-cyan-200 text-xs">$1</code>')
-                      }}
-                    />
-                  </div>
-                );
-              })
+            {notesBlocks.length > 0 ? (
+              <SourceDocument blocks={notesBlocks} activeBlockId={activeHighlightBlockId} />
             ) : (
               <div className="text-slate-400 text-sm italic">
                 No se encontraron bloques anotados en el documento de notas.

@@ -1,8 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import {
+  Loader2,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Crosshair
+} from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { HighlightBbox } from '../types';
 
@@ -19,6 +25,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
  * (sin notas_completas.md). Dibuja un recuadro de Smart Highlight sobre
  * el párrafo indicado por el backend, usando el bbox precalculado en el
  * momento de la indexación (ver rag_engine.extract_pdf_blocks).
+ *
+ * Incluye navegación de páginas y un botón para volver al resaltado activo,
+ * de modo que el usuario pueda hojear el documento sin perder la cita.
  */
 export const PdfHighlightViewer: React.FC = () => {
   const { selectedTopic, activeHighlightPage, activeHighlightBbox, fetchPdfViewUrl } =
@@ -26,6 +35,7 @@ export const PdfHighlightViewer: React.FC = () => {
 
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
+  const [viewPage, setViewPage] = useState<number>(1);
   const [pageWidth, setPageWidth] = useState<number>(420);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,6 +46,8 @@ export const PdfHighlightViewer: React.FC = () => {
     let cancelled = false;
     setPdfUrl(null);
     setError(null);
+    setNumPages(0);
+    setViewPage(1);
 
     if (selectedTopic) {
       fetchPdfViewUrl(selectedTopic.id).then((url) => {
@@ -50,22 +62,46 @@ export const PdfHighlightViewer: React.FC = () => {
     };
   }, [selectedTopic, fetchPdfViewUrl]);
 
-  // Ajusta el ancho de renderizado al ancho disponible del panel
+  // Mantiene el ancho de renderizado sincronizado con el panel (split view)
   useEffect(() => {
-    if (containerRef.current) {
-      setPageWidth(Math.max(280, containerRef.current.clientWidth - 24));
-    }
-  }, []);
+    const el = containerRef.current;
+    if (!el) return;
 
-  // Auto-scroll hacia la página objetivo cuando llega un Smart Highlight
+    const updateWidth = () => {
+      setPageWidth(Math.max(280, el.clientWidth - 24));
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [pdfUrl]);
+
+  // Cuando llega un Smart Highlight, salta a la página citada
   useEffect(() => {
-    if (activeHighlightPage && targetPageRef.current) {
-      const timer = setTimeout(() => {
-        targetPageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 250);
-      return () => clearTimeout(timer);
+    if (activeHighlightPage) {
+      setViewPage(activeHighlightPage);
     }
-  }, [activeHighlightPage, numPages]);
+  }, [activeHighlightPage]);
+
+  // Auto-scroll hacia la página visible cuando cambia la página o el resaltado
+  useEffect(() => {
+    if (!targetPageRef.current) return;
+    const timer = setTimeout(() => {
+      targetPageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [viewPage, numPages, activeHighlightPage]);
+
+  const goToPage = useCallback(
+    (page: number) => {
+      if (!numPages) return;
+      setViewPage(Math.min(Math.max(1, page), numPages));
+    },
+    [numPages]
+  );
 
   if (!selectedTopic) return null;
 
@@ -87,43 +123,87 @@ export const PdfHighlightViewer: React.FC = () => {
     );
   }
 
-  // Renderiza solo la página activa y sus vecinas inmediatas para no
-  // pagar el costo de dibujar un PDF completo de muchas páginas.
-  const targetPage = activeHighlightPage ?? 1;
+  // Renderiza la página visible y sus vecinas inmediatas para no pagar el
+  // costo de dibujar un PDF completo de muchas páginas.
   const pagesToRender = Array.from({ length: numPages }, (_, i) => i + 1).filter(
-    (p) => numPages <= 3 || Math.abs(p - targetPage) <= 1
+    (p) => numPages <= 3 || Math.abs(p - viewPage) <= 1
   );
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto p-3 bg-slate-950/40">
-      <Document
-        file={pdfUrl}
-        onLoadSuccess={({ numPages: n }) => setNumPages(n)}
-        loading={
-          <div className="flex items-center justify-center py-10 text-slate-400 gap-2">
-            <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
-            <span className="text-xs">Renderizando documento...</span>
-          </div>
-        }
-        error={
-          <div className="text-sm text-amber-400 p-4 text-center">
-            No se pudo renderizar el PDF en el visor. Puedes descargarlo directamente.
-          </div>
-        }
-      >
-        {pagesToRender.map((pageNum) => (
-          <PdfPage
-            key={pageNum}
-            pageNumber={pageNum}
-            pageWidth={pageWidth}
-            isTarget={pageNum === targetPage}
-            bbox={pageNum === activeHighlightPage ? activeHighlightBbox : null}
-            registerTargetRef={(el) => {
-              if (pageNum === targetPage) targetPageRef.current = el;
-            }}
-          />
-        ))}
-      </Document>
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Barra de navegación del PDF */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 px-1 pb-2">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => goToPage(viewPage - 1)}
+            disabled={viewPage <= 1 || !numPages}
+            title="Página anterior"
+            className="rounded-md border border-slate-700 bg-slate-900 p-1.5 text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="min-w-[76px] text-center font-mono text-[11px] text-slate-300">
+            Pág. {viewPage} / {numPages || '—'}
+          </span>
+          <button
+            type="button"
+            onClick={() => goToPage(viewPage + 1)}
+            disabled={!numPages || viewPage >= numPages}
+            title="Página siguiente"
+            className="rounded-md border border-slate-700 bg-slate-900 p-1.5 text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {activeHighlightPage ? (
+          <button
+            type="button"
+            onClick={() => goToPage(activeHighlightPage)}
+            title={`Ir a la página ${activeHighlightPage} del resaltado`}
+            className="inline-flex items-center gap-1 rounded-md border border-amber-400/40 bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-300 transition-colors hover:bg-amber-500/25"
+          >
+            <Crosshair className="h-3.5 w-3.5" />
+            Ir al resaltado
+            {activeHighlightPage !== viewPage ? ` (p.${activeHighlightPage})` : ''}
+          </button>
+        ) : (
+          <span className="text-[10px] font-mono text-slate-500">Sin resaltado activo</span>
+        )}
+      </div>
+
+      {/* Lienzo del documento */}
+      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto p-3 bg-slate-950/40">
+        <Document
+          file={pdfUrl}
+          onLoadSuccess={({ numPages: n }) => setNumPages(n)}
+          loading={
+            <div className="flex items-center justify-center py-10 text-slate-400 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+              <span className="text-xs">Renderizando documento...</span>
+            </div>
+          }
+          error={
+            <div className="text-sm text-amber-400 p-4 text-center">
+              No se pudo renderizar el PDF en el visor. Puedes descargarlo directamente.
+            </div>
+          }
+        >
+          {pagesToRender.map((pageNum) => (
+            <PdfPage
+              key={pageNum}
+              pageNumber={pageNum}
+              pageWidth={pageWidth}
+              isViewPage={pageNum === viewPage}
+              bbox={pageNum === activeHighlightPage ? activeHighlightBbox : null}
+              registerTargetRef={(el) => {
+                if (pageNum === viewPage) targetPageRef.current = el;
+              }}
+            />
+          ))}
+        </Document>
+      </div>
     </div>
   );
 };
@@ -131,12 +211,18 @@ export const PdfHighlightViewer: React.FC = () => {
 interface PdfPageProps {
   pageNumber: number;
   pageWidth: number;
-  isTarget: boolean;
+  isViewPage: boolean;
   bbox: HighlightBbox | null;
   registerTargetRef: (el: HTMLDivElement | null) => void;
 }
 
-const PdfPage: React.FC<PdfPageProps> = ({ pageNumber, pageWidth, bbox, registerTargetRef }) => {
+const PdfPage: React.FC<PdfPageProps> = ({
+  pageNumber,
+  pageWidth,
+  isViewPage,
+  bbox,
+  registerTargetRef
+}) => {
   // originalWidth/originalHeight son las dimensiones reales del PDF (en
   // puntos), la misma unidad que usa pdfplumber para calcular el bbox
   // en el backend. Con esto escalamos el recuadro al tamaño renderizado.
@@ -146,7 +232,9 @@ const PdfPage: React.FC<PdfPageProps> = ({ pageNumber, pageWidth, bbox, register
   return (
     <div
       ref={registerTargetRef}
-      className="relative mx-auto mb-4 shadow-lg shadow-black/40"
+      className={`relative mx-auto mb-4 shadow-lg shadow-black/40 ${
+        isViewPage ? '' : 'opacity-80'
+      }`}
       style={{ width: pageWidth }}
     >
       <Page

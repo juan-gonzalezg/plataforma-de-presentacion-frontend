@@ -7,6 +7,13 @@ export const SessionLogDrawer: React.FC = () => {
 
   if (!isSessionLogOpen) return null;
 
+  const sourceLabel = (source: string) =>
+    source === 'local'
+      ? 'Notas Oficiales'
+      : source === 'timeout'
+        ? 'Sin conexión'
+        : 'Búsqueda Web Externa';
+
   const exportMarkdown = () => {
     const lines = [
       `# Bitácora de Dudas y Respuestas de la Sesión`,
@@ -16,7 +23,7 @@ export const SessionLogDrawer: React.FC = () => {
           .map((r) => `  - [${r.id}] ${r.title}: ${r.url}`)
           .join('\n');
         return `### ${index + 1}. Pregunta: "${item.query}"\n` +
-          `- **Fuente:** ${item.source === 'local' ? 'Notas Oficiales' : 'Búsqueda Web Externa'}\n` +
+          `- **Fuente:** ${sourceLabel(item.source)}\n` +
           (item.provider ? `- **Proveedor web:** ${item.provider}\n` : '') +
           `- **Confianza:** ${Math.round(item.confidence * 100)}% | **Latencia:** ${item.latency_ms}ms\n` +
           `- **Respuesta:** ${item.answer_summary}\n` +
@@ -92,12 +99,14 @@ export const SessionLogDrawer: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1 ${
-                    item.source === 'local' 
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' 
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    item.source === 'local'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                      : item.source === 'timeout'
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                   }`}>
                     {item.source === 'local' ? <Sparkles className="w-2.5 h-2.5" /> : <Globe className="w-2.5 h-2.5" />}
-                    {item.source === 'local' ? 'Notas Oficiales' : 'Búsqueda Web'}
+                    {sourceLabel(item.source)}
                   </span>
                   <span className="text-[10px] font-mono text-slate-400">
                     {item.latency_ms}ms • Conf. {Math.round(item.confidence * 100)}%
