@@ -3,6 +3,7 @@ import { usePresentationStore } from './store/usePresentationStore';
 import { P01_Home } from './components/P01_Home';
 import { P02_Presentacion } from './components/P02_Presentacion';
 import { P03_NotebookLM } from './components/P03_NotebookLM';
+import { SessionLogDrawer } from './components/SessionLogDrawer';
 
 export const App: React.FC = () => {
   const {
@@ -99,6 +100,8 @@ export const App: React.FC = () => {
       {currentView === 'home' && <P01_Home />}
       {currentView === 'presentation' && <P02_Presentacion />}
       {currentView === 'notebooklm' && <P03_NotebookLM />}
+      {/* Bitácora global (HU-RES-03): exportación e importación desde cualquier vista. */}
+      <SessionLogDrawer />
     </div>
   );
 };

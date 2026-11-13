@@ -1,5 +1,18 @@
 import React from 'react';
-import { X, History, Sparkles, Globe, Download, Clock, FileJson, Trash2, Save } from 'lucide-react';
+import {
+  X,
+  History,
+  Sparkles,
+  Globe,
+  Download,
+  Clock,
+  FileJson,
+  Trash2,
+  Save,
+  Upload,
+  AlertTriangle,
+  CheckCircle2
+} from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import {
   buildSessionBackup,
@@ -8,6 +21,12 @@ import {
   fileStamp,
   slugify
 } from '../lib/sessionExport';
+import { MAX_BACKUP_BYTES, parseSessionBackup } from '../lib/sessionImport';
+import type {
+  BackupPreview,
+  ImportMode,
+  SessionBackup
+} from '../lib/sessionImport';
 
 export const SessionLogDrawer: React.FC = () => {
   const {
@@ -19,8 +38,29 @@ export const SessionLogDrawer: React.FC = () => {
     stickyNotes,
     contrastMode,
     fontSize,
-    resetStoredSession
+    resetStoredSession,
+    importSessionBackup
   } = usePresentationStore();
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = React.useState<{
+    backup: SessionBackup;
+    preview: BackupPreview;
+    fileName: string;
+  } | null>(null);
+  const [importMode, setImportMode] = React.useState<ImportMode>('merge');
+  const [importError, setImportError] = React.useState<string | null>(null);
+  const [isReadingBackup, setIsReadingBackup] = React.useState(false);
+
+  // Al cerrar la bitácora se descarta cualquier vista previa pendiente para que
+  // el próximo respaldo se seleccione desde cero.
+  React.useEffect(() => {
+    if (!isSessionLogOpen) {
+      setPendingImport(null);
+      setImportError(null);
+      setIsReadingBackup(false);
+    }
+  }, [isSessionLogOpen]);
 
   if (!isSessionLogOpen) return null;
 
@@ -53,6 +93,82 @@ export const SessionLogDrawer: React.FC = () => {
       }),
       'application/json;charset=utf-8'
     );
+  };
+
+  const resetImportPanel = () => {
+    setPendingImport(null);
+    setImportError(null);
+    setIsReadingBackup(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImportFile = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setPendingImport(null);
+    setImportError(null);
+
+    if (file.size > MAX_BACKUP_BYTES) {
+      setImportError(
+        'El archivo supera el límite de 5 MB. Selecciona un respaldo más pequeño.'
+      );
+      return;
+    }
+
+    setIsReadingBackup(true);
+    try {
+      const text = await file.text();
+      const result = parseSessionBackup(text);
+      if (!result.ok) {
+        setImportError(result.error);
+        return;
+      }
+      setImportMode('merge');
+      setPendingImport({
+        backup: result.backup,
+        preview: result.preview,
+        fileName: file.name
+      });
+    } catch {
+      setImportError(
+        'No se pudo leer el archivo. Revisa que sea un JSON accesible y vuelve a intentarlo.'
+      );
+    } finally {
+      setIsReadingBackup(false);
+    }
+  };
+
+  const confirmImport = () => {
+    if (!pendingImport) return;
+
+    const hasCurrentSession =
+      sessionHistory.length > 0 ||
+      chatMessages.length > 0 ||
+      stickyNotes.length > 0 ||
+      Boolean(selectedTopic);
+
+    if (
+      importMode === 'replace' &&
+      hasCurrentSession &&
+      !window.confirm(
+        '¿Reemplazar la sesión actual con el respaldo? Se sustituirán el módulo, el chat, la bitácora y las notas adhesivas de este navegador. Descarga un respaldo antes si lo necesitas.'
+      )
+    ) {
+      return;
+    }
+
+    importSessionBackup(pendingImport.backup, importMode);
+    resetImportPanel();
+  };
+
+  const formatBackupDate = (value: string) => {
+    if (!value) return 'sin fecha';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
   };
 
   const handleReset = () => {
@@ -114,7 +230,167 @@ export const SessionLogDrawer: React.FC = () => {
             <FileJson className="w-3.5 h-3.5" />
             <span>Respaldo .json</span>
           </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isReadingBackup}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-sky-500/20 text-sky-300 text-xs font-medium border border-slate-700 hover:border-sky-500/50 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Restaurar o fusionar un respaldo JSON exportado por la plataforma"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>{isReadingBackup ? 'Leyendo…' : 'Importar .json'}</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
         </div>
+
+        {/* Importación de respaldos: vista previa antes de tocar la sesión */}
+        {(importError || pendingImport) && (
+          <div className="py-3 border-b border-slate-800 space-y-3">
+            {importError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200"
+              >
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                <div className="space-y-2">
+                  <p className="leading-relaxed">{importError}</p>
+                  <button
+                    type="button"
+                    onClick={resetImportPanel}
+                    className="text-[11px] font-semibold text-red-300 underline underline-offset-2 hover:text-red-200"
+                  >
+                    Cerrar aviso
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {pendingImport && (
+              <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-3 text-xs">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-sky-400" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-100">
+                      Respaldo listo para importar
+                    </p>
+                    <p className="truncate text-[11px] text-slate-400" title={pendingImport.fileName}>
+                      {pendingImport.fileName}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5 space-y-1.5">
+                  <p className="font-semibold text-slate-200">
+                    {pendingImport.preview.topicTitle}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {pendingImport.preview.topicId
+                      ? `${pendingImport.preview.slides} láminas · `
+                      : ''}
+                    Exportado: {formatBackupDate(pendingImport.preview.exportedAt)}
+                  </p>
+                  <ul className="grid grid-cols-3 gap-2 pt-1 text-center">
+                    <li className="rounded-lg bg-slate-800/80 p-2">
+                      <span className="block text-sm font-bold text-cyan-300">
+                        {pendingImport.preview.chatMessages}
+                      </span>
+                      <span className="text-[10px] text-slate-400">Mensajes</span>
+                    </li>
+                    <li className="rounded-lg bg-slate-800/80 p-2">
+                      <span className="block text-sm font-bold text-emerald-300">
+                        {pendingImport.preview.sessionHistory}
+                      </span>
+                      <span className="text-[10px] text-slate-400">Consultas</span>
+                    </li>
+                    <li className="rounded-lg bg-slate-800/80 p-2">
+                      <span className="block text-sm font-bold text-amber-300">
+                        {pendingImport.preview.stickyNotes}
+                      </span>
+                      <span className="text-[10px] text-slate-400">Notas</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {pendingImport.preview.warnings.length > 0 && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 space-y-1">
+                    {pendingImport.preview.warnings.map((warning, index) => (
+                      <p
+                        key={`${index}-${warning}`}
+                        className="flex items-start gap-1.5 text-[11px] text-amber-200"
+                      >
+                        <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                        <span>{warning}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Cómo importar
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setImportMode('merge')}
+                      className={`rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                        importMode === 'merge'
+                          ? 'border-sky-500/60 bg-sky-500/15 text-sky-100'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      <span className="block text-[11px] font-semibold">Fusionar</span>
+                      <span className="block text-[10px] text-slate-400">
+                        Conserva lo actual y añade el respaldo
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImportMode('replace')}
+                      className={`rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                        importMode === 'replace'
+                          ? 'border-amber-500/60 bg-amber-500/15 text-amber-100'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      <span className="block text-[11px] font-semibold">Reemplazar</span>
+                      <span className="block text-[10px] text-slate-400">
+                        Sustituye la sesión actual
+                      </span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-slate-500">
+                    Los datos se validan y recortan a los límites de autoguardado
+                    antes de aplicarse. No se envía nada al servidor.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={resetImportPanel}
+                    className="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 text-xs font-medium hover:bg-slate-800 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmImport}
+                    className="px-3 py-1.5 rounded-lg bg-sky-500/20 text-sky-200 text-xs font-semibold border border-sky-500/50 hover:bg-sky-500/30 transition-colors flex items-center gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    {importMode === 'replace' ? 'Reemplazar sesión' : 'Fusionar respaldo'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Lista de Registros */}
         <div className="flex-1 overflow-y-auto py-4 space-y-3.5">

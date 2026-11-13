@@ -8,6 +8,8 @@ import {
   mergeSession,
   persistSessionSnapshot
 } from '../lib/sessionPersistence';
+import { buildImportedSession } from '../lib/sessionImport';
+import type { ImportMode, SessionBackup } from '../lib/sessionImport';
 import { 
   AppView, 
   ContrastMode, 
@@ -95,6 +97,8 @@ interface PresentationStore {
   clearChat: () => void;
   /** Borra la sesión guardada y vuelve al Home. */
   resetStoredSession: () => void;
+  /** Restaura o fusiona un respaldo JSON validado. */
+  importSessionBackup: (backup: SessionBackup, mode: ImportMode) => void;
   loadLlmStatus: () => Promise<void>;
   loadSystemHealth: () => Promise<void>;
   setContrastMode: (mode: ContrastMode) => void;
@@ -1059,6 +1063,68 @@ export const usePresentationStore = create<PresentationStore>()(
       robotMood: 'idle_atento',
       robotSpeechBubble: 'Sesión borrada. Selecciona un módulo para comenzar.'
     });
+  },
+
+  /**
+   * Importación del respaldo JSON (Fase 2 de persistencia).
+   * El archivo llega ya parseado y validado por `parseSessionBackup`; aquí solo
+   * se aplica al estado, que el middleware `persist` vuelve a guardar.
+   */
+  importSessionBackup: (backup, mode) => {
+    chatAbortController?.abort();
+    chatAbortController = null;
+
+    const state = get();
+    const imported = buildImportedSession(
+      {
+        selectedTopic: state.selectedTopic,
+        currentView: state.currentView,
+        currentSlideIndex: state.currentSlideIndex,
+        chatMessages: state.chatMessages,
+        moduleChats: state.moduleChats,
+        sessionHistory: state.sessionHistory,
+        stickyNotes: state.stickyNotes,
+        latestChatSources: state.latestChatSources,
+        activeHighlightBlockId: state.activeHighlightBlockId,
+        activeHighlightPage: state.activeHighlightPage,
+        activeHighlightBbox: state.activeHighlightBbox,
+        contrastMode: state.contrastMode,
+        fontSize: state.fontSize
+      },
+      backup,
+      mode
+    );
+
+    // Un módulo restaurado sin conversación conserva su mensaje de bienvenida.
+    let chatMessages = imported.chatMessages;
+    let moduleChats = imported.moduleChats;
+    if (imported.selectedTopic && chatMessages.length === 0) {
+      const welcome = [buildWelcomeMessage(imported.selectedTopic)];
+      chatMessages = welcome;
+      moduleChats = {
+        ...moduleChats,
+        [imported.selectedTopic.id]: welcome
+      };
+    }
+
+    set({
+      ...imported,
+      chatMessages,
+      moduleChats,
+      isSessionLogOpen: false,
+      isDrawerOpen: false,
+      isSpotlightOpen: false,
+      isSearching: false,
+      searchErrorToast: null
+    });
+
+    get().setRobotMood('celebrar', 2500);
+    get().setRobotSpeech(
+      mode === 'replace'
+        ? `Sesión restaurada${imported.selectedTopic ? `: ${imported.selectedTopic.title}` : ''}.`
+        : `Respaldo fusionado: ${imported.sessionHistory.length} consultas y ${imported.stickyNotes.length} notas adhesivas.`,
+      5000
+    );
   },
 
   loadLlmStatus: async () => {

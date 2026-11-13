@@ -17,7 +17,6 @@ import { RobotAvatar } from './RobotAvatar';
 import { SmartHighlightDrawer } from './SmartHighlightDrawer';
 import { SpotlightModal } from './SpotlightModal';
 import { StickyNotesOverlay } from './StickyNotesOverlay';
-import { SessionLogDrawer } from './SessionLogDrawer';
 import { AccessibilityControls } from './AccessibilityControls';
 
 export const P02_Presentacion: React.FC = () => {
@@ -347,9 +346,6 @@ export const P02_Presentacion: React.FC = () => {
 
       {/* Tarjetas Adhesivas Flotantes Web/RAG (HU-AIQ-02) */}
       <StickyNotesOverlay />
-
-      {/* Bitácora de Dudas (HU-RES-03) */}
-      <SessionLogDrawer />
     </div>
   );
 };
