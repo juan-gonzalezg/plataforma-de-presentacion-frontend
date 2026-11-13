@@ -24,7 +24,11 @@ const MOOD_LABEL: Record<RobotMood, string> = {
 };
 
 const BODY_PATH =
-  'M100 78 C80 78 66 90 58 108 C46 132 44 156 56 169 C65 178 81 181 100 181 C119 181 135 178 144 169 C156 156 154 132 142 108 C134 90 120 78 100 78 Z';
+  'M100 80 C84 80 72 87 64 99 C55 112 50 126 49 140 C47 158 59 173 77 178 C91 182 109 182 123 178 C141 173 153 158 151 140 C150 126 145 112 136 99 C128 87 116 80 100 80 Z';
+
+/** Cápsulas de brazos: mismo trazo redondeado en todos los estados. */
+const LEFT_ARM_IDLE = 'M57 108 C45 120 39 140 43 154';
+const RIGHT_ARM_IDLE = 'M143 108 C155 120 161 140 157 154';
 
 export const RobotAvatar: React.FC<RobotAvatarProps> = ({
   mood,
@@ -46,7 +50,10 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
   const bodyGradientId = `logos-body-${uid}`;
   const headGradientId = `logos-head-${uid}`;
   const limbGradientId = `logos-limb-${uid}`;
+  const podGradientId = `logos-pod-${uid}`;
   const bodyClipId = `logos-clip-${uid}`;
+  const headClipId = `logos-head-clip-${uid}`;
+  const softShadowId = `logos-shadow-${uid}`;
 
   const accent =
     mood === 'sin_senal'
@@ -70,6 +77,14 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
       event.preventDefault();
       onClick();
     }
+  };
+
+  const armProps = {
+    fill: 'none',
+    stroke: `url(#${limbGradientId})`,
+    strokeWidth: 19,
+    strokeLinecap: 'round' as const,
+    filter: `url(#${softShadowId})`
   };
 
   return (
@@ -97,7 +112,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
         </div>
       )}
 
-      {/* SVG del asistente: silueta blanca e inflable, ojos mínimos */}
+      {/* SVG del asistente: blanco, inflable y con articulaciones suaves */}
       <div className={`relative ${sizeMap[size]} transition-all duration-300`}>
         <svg
           viewBox="0 0 200 200"
@@ -109,22 +124,45 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
         >
           <defs>
             <linearGradient id={bodyGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="55%" stopColor="#f1f5f9" />
-              <stop offset="100%" stopColor="#d7e2ee" />
+              <stop offset="0%" stopColor="#f0f9ff" />
+              <stop offset="40%" stopColor="#ffffff" />
+              <stop offset="100%" stopColor="#dbeafe" />
             </linearGradient>
             <linearGradient id={headGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="70%" stopColor="#f8fafc" />
-              <stop offset="100%" stopColor="#e6edf5" />
+              <stop offset="60%" stopColor="#f8fbff" />
+              <stop offset="100%" stopColor="#e0f2fe" />
             </linearGradient>
             <linearGradient id={limbGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#e2e8f0" />
+              <stop offset="100%" stopColor="#e0f2fe" />
+            </linearGradient>
+            <linearGradient id={podGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#bae6fd" />
+              <stop offset="55%" stopColor="#38bdf8" />
+              <stop offset="100%" stopColor="#0284c7" />
             </linearGradient>
             <clipPath id={bodyClipId}>
               <path d={BODY_PATH} />
             </clipPath>
+            <clipPath id={headClipId}>
+              <ellipse cx="100" cy="56" rx="33" ry="26" />
+            </clipPath>
+            <filter
+              id={softShadowId}
+              x="-20%"
+              y="-20%"
+              width="140%"
+              height="140%"
+            >
+              <feDropShadow
+                dx="0"
+                dy="1.5"
+                stdDeviation="1.3"
+                floodColor="#334155"
+                floodOpacity="0.45"
+              />
+            </filter>
           </defs>
 
           {/* Sombra proyectada en el suelo */}
@@ -133,174 +171,33 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
 
           {/* Grupo principal con animación de flotación / empuje */}
           <g className={`origin-center transition-all duration-300 ${bodyAnimation}`}>
-            {/* PIERNAS CORTAS */}
-            <rect
-              x="78"
-              y="162"
-              width="20"
-              height="31"
-              rx="10"
-              fill={`url(#${limbGradientId})`}
-              stroke="#c3d0df"
-              strokeWidth="1.5"
-            />
-            <rect
-              x="102"
-              y="162"
-              width="20"
-              height="31"
-              rx="10"
-              fill={`url(#${limbGradientId})`}
-              stroke="#c3d0df"
-              strokeWidth="1.5"
-            />
-
-            {/* CUERPO INFLABLE EN FORMA DE PERA */}
-            <path
-              d={BODY_PATH}
-              fill={`url(#${bodyGradientId})`}
-              stroke="#c3d0df"
-              strokeWidth="1.8"
-            />
-
-            {/* Sombras suaves para dar volumen sin salir del cuerpo */}
-            <g clipPath={`url(#${bodyClipId})`}>
-              <ellipse cx="76" cy="128" rx="24" ry="34" fill="#ffffff" opacity="0.65" />
-              <ellipse cx="133" cy="142" rx="22" ry="32" fill="#c3d0df" opacity="0.45" />
-              <ellipse cx="100" cy="174" rx="48" ry="16" fill="#c3d0df" opacity="0.28" />
-            </g>
-
-            {/* INSIGNIA / PUERTO EN EL PECHO */}
-            <circle
-              cx="122"
-              cy="103"
-              r="7.5"
-              fill="#f8fafc"
-              stroke="#c8d4e2"
-              strokeWidth="1.6"
-            />
-            {mood === 'sin_senal' ? (
-              <path
-                d="M119 100 L125 106 M125 100 L119 106"
-                stroke="#ef4444"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            ) : (
-              <circle cx="122" cy="103" r="3" fill={accent} className="animate-pulse" />
-            )}
-
-            {/* CABEZA REDONDEADA */}
-            <ellipse
-              cx="100"
-              cy="57"
-              rx="31"
-              ry="25"
-              fill={`url(#${headGradientId})`}
-              stroke="#c3d0df"
-              strokeWidth="1.8"
-            />
-
-            {/* OJOS SEGÚN ESTADO ANÍMICO */}
-            {(mood === 'idle_atento' || mood === 'apuntar_puntero') && (
-              <g>
-                <line
-                  x1="91.5"
-                  y1="55"
-                  x2="108.5"
-                  y2="55"
-                  stroke="#0f172a"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                />
-                <circle cx="87" cy="55" r="4.4" fill="#0f172a" />
-                <circle cx="113" cy="55" r="4.4" fill="#0f172a" />
-              </g>
-            )}
-
-            {mood === 'empujar_pantalla' && (
-              <g stroke="#0f172a" strokeWidth="3" strokeLinecap="round">
-                <path d="M82 56 Q87 51 92 56" />
-                <path d="M108 56 Q113 51 118 56" />
-              </g>
-            )}
-
-            {mood === 'buscar_antena' && (
-              <g>
-                <circle
-                  cx="87"
-                  cy="55"
-                  r="7"
-                  stroke={accent}
-                  strokeWidth="2"
-                  fill="none"
-                  className="animate-pulse"
-                />
-                <circle cx="87" cy="55" r="2.5" fill={accent} />
-                <circle
-                  cx="113"
-                  cy="55"
-                  r="7"
-                  stroke={accent}
-                  strokeWidth="2"
-                  fill="none"
-                  className="animate-pulse"
-                />
-                <circle cx="113" cy="55" r="2.5" fill={accent} />
-              </g>
-            )}
-
-            {mood === 'sin_senal' && (
-              <g stroke="#ef4444" strokeWidth="2.6" strokeLinecap="round">
-                <path d="M82 50 L90 58 M90 50 L82 58" />
-                <path d="M110 50 L118 58 M118 50 L110 58" />
-              </g>
-            )}
-
-            {mood === 'celebrar' && (
-              <g stroke="#0f172a" strokeWidth="3" strokeLinecap="round" fill="none">
-                <path d="M81 57 Q87 49 93 57" />
-                <path d="M107 57 Q113 49 119 57" />
-              </g>
-            )}
-
-            {/* BRAZOS SEGÚN ESTADO */}
+            {/* BRAZOS DETRÁS DEL CUERPO: cápsulas sin costuras duras */}
             {mood === 'celebrar' ? (
-              <g strokeLinecap="round" fill="none">
-                <path d="M60 104 C46 92 42 76 46 64" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M60 104 C46 92 42 76 46 64" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="46" cy="61" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
-                <path d="M140 104 C154 92 158 76 154 64" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M140 104 C154 92 158 76 154 64" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="154" cy="61" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+              <g {...armProps}>
+                <path d="M57 108 C45 94 41 78 45 64" />
+                <circle cx="45" cy="61" r="9.5" fill="#f8fbff" />
+                <path d="M143 108 C155 94 159 78 155 64" />
+                <circle cx="155" cy="61" r="9.5" fill="#f8fbff" />
               </g>
             ) : mood === 'empujar_pantalla' ? (
-              <g strokeLinecap="round" fill="none">
-                {/* Brazo izquierdo en reposo */}
-                <path d="M60 104 C48 116 42 134 44 148" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M60 104 C48 116 42 134 44 148" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="44" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
-                {/* Brazo derecho extendido, como empujando la lámina */}
-                <path d="M140 106 C154 104 168 100 180 98" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M140 106 C154 104 168 100 180 98" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="183" cy="97" r="7.5" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+              <g {...armProps}>
+                <path d={LEFT_ARM_IDLE} />
+                <circle cx="43" cy="156" r="9.5" fill="#f8fbff" />
+                <path d="M143 108 C157 106 171 102 183 99" />
+                <circle cx="186" cy="98" r="9.5" fill="#f8fbff" />
               </g>
             ) : mood === 'apuntar_puntero' ? (
-              <g strokeLinecap="round" fill="none">
-                {/* Brazo izquierdo en reposo */}
-                <path d="M60 104 C48 116 42 134 44 148" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M60 104 C48 116 42 134 44 148" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="44" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
-                {/* Brazo derecho señalando */}
-                <path d="M140 104 C154 98 168 90 180 86" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M140 104 C154 98 168 90 180 86" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="182" cy="85" r="7.5" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
-                <circle cx="190" cy="82" r="4.5" fill="#f59e0b" className="animate-pulse" />
+              <g {...armProps}>
+                <path d={LEFT_ARM_IDLE} />
+                <circle cx="43" cy="156" r="9.5" fill="#f8fbff" />
+                <path d="M143 108 C157 102 171 94 183 89" />
+                <circle cx="185" cy="88" r="9.5" fill="#f8fbff" />
+                <circle cx="193" cy="85" r="4.5" fill="#f59e0b" className="animate-pulse" />
                 <line
-                  x1="190"
-                  y1="82"
+                  x1="193"
+                  y1="85"
                   x2="199"
-                  y2="78"
+                  y2="82"
                   stroke="#f59e0b"
                   strokeWidth="2"
                   strokeDasharray="3 3"
@@ -309,13 +206,188 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
                 />
               </g>
             ) : (
-              <g strokeLinecap="round" fill="none">
-                <path d="M60 104 C48 116 42 134 44 148" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M60 104 C48 116 42 134 44 148" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="44" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
-                <path d="M140 104 C152 116 158 134 156 148" stroke="#c3d0df" strokeWidth="17" />
-                <path d="M140 104 C152 116 158 134 156 148" stroke="#ffffff" strokeWidth="13" />
-                <circle cx="156" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+              <g {...armProps}>
+                <path d={LEFT_ARM_IDLE} />
+                <circle cx="43" cy="156" r="9.5" fill="#f8fbff" />
+                <path d={RIGHT_ARM_IDLE} />
+                <circle cx="157" cy="156" r="9.5" fill="#f8fbff" />
+              </g>
+            )}
+
+            {/* PIERNAS: cápsulas redondeadas que nacen bajo el cuerpo */}
+            <g filter={`url(#${softShadowId})`}>
+              <rect
+                x="78"
+                y="156"
+                width="21"
+                height="36"
+                rx="10.5"
+                fill={`url(#${limbGradientId})`}
+              />
+              <rect
+                x="101"
+                y="156"
+                width="21"
+                height="36"
+                rx="10.5"
+                fill={`url(#${limbGradientId})`}
+              />
+            </g>
+            <ellipse cx="100" cy="176" rx="30" ry="7" fill="#bfdbfe" opacity="0.45" />
+
+            {/* CUERPO INFLABLE EN FORMA DE PERA */}
+            <path
+              d={BODY_PATH}
+              fill={`url(#${bodyGradientId})`}
+              stroke="#a9b8c9"
+              strokeOpacity="0.55"
+              strokeWidth="1.4"
+            />
+
+            {/* Sombras suaves para dar volumen sin salir del cuerpo */}
+            <g clipPath={`url(#${bodyClipId})`}>
+              <ellipse cx="76" cy="130" rx="24" ry="34" fill="#ffffff" opacity="0.7" />
+              <ellipse cx="134" cy="142" rx="20" ry="30" fill="#bfdbfe" opacity="0.55" />
+              <ellipse cx="100" cy="177" rx="50" ry="15" fill="#bfdbfe" opacity="0.55" />
+            </g>
+
+            {/* ARTICULACIONES REDONDEADAS DE LOS HOMBROS */}
+            <g>
+              <circle cx="59" cy="108" r="15" fill="#bae6fd" opacity="0.35" />
+              <circle
+                cx="59"
+                cy="108"
+                r="13"
+                fill={`url(#${podGradientId})`}
+                stroke="#7dd3fc"
+                strokeOpacity="0.7"
+                strokeWidth="1"
+              />
+              <ellipse
+                cx="55"
+                cy="103"
+                rx="5"
+                ry="3.5"
+                fill="#ffffff"
+                opacity="0.6"
+                transform="rotate(-35 55 103)"
+              />
+              <circle cx="141" cy="108" r="15" fill="#bae6fd" opacity="0.35" />
+              <circle
+                cx="141"
+                cy="108"
+                r="13"
+                fill={`url(#${podGradientId})`}
+                stroke="#7dd3fc"
+                strokeOpacity="0.7"
+                strokeWidth="1"
+              />
+              <ellipse
+                cx="145"
+                cy="103"
+                rx="5"
+                ry="3.5"
+                fill="#ffffff"
+                opacity="0.6"
+                transform="rotate(-35 145 103)"
+              />
+            </g>
+
+            {/* INSIGNIA / PUERTO EN EL PECHO */}
+            <circle
+              cx="122"
+              cy="104"
+              r="8"
+              fill="#f8fbff"
+              stroke="#bae6fd"
+              strokeWidth="2"
+            />
+            {mood === 'sin_senal' ? (
+              <path
+                d="M119 101 L125 107 M125 101 L119 107"
+                stroke="#ef4444"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            ) : (
+              <circle cx="122" cy="104" r="3.2" fill={accent} className="animate-pulse" />
+            )}
+
+            {/* CABEZA REDONDEADA SIN COSTURA VISIBLE EN EL CUELLO */}
+            <ellipse cx="100" cy="56" rx="33" ry="26" fill={`url(#${headGradientId})`} />
+            <g clipPath={`url(#${headClipId})`}>
+              <ellipse cx="100" cy="77" rx="32" ry="12" fill="#dbeafe" opacity="0.5" />
+              <ellipse cx="86" cy="43" rx="15" ry="7" fill="#ffffff" opacity="0.8" />
+            </g>
+            {/* Contorno superior: define la cabeza sin dibujar una costura en el cuello */}
+            <path
+              d="M67 56 A33 26 0 0 1 133 56"
+              stroke="#a9b8c9"
+              strokeOpacity="0.6"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
+
+            {/* OJOS SEGÚN ESTADO ANÍMICO */}
+            {(mood === 'idle_atento' || mood === 'apuntar_puntero') && (
+              <g>
+                <line
+                  x1="91.5"
+                  y1="54"
+                  x2="108.5"
+                  y2="54"
+                  stroke="#0f172a"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                />
+                <circle cx="87" cy="54" r="4.6" fill="#0f172a" />
+                <circle cx="113" cy="54" r="4.6" fill="#0f172a" />
+              </g>
+            )}
+
+            {mood === 'empujar_pantalla' && (
+              <g stroke="#0f172a" strokeWidth="3" strokeLinecap="round">
+                <path d="M82 55 Q87 50 92 55" />
+                <path d="M108 55 Q113 50 118 55" />
+              </g>
+            )}
+
+            {mood === 'buscar_antena' && (
+              <g>
+                <circle
+                  cx="87"
+                  cy="54"
+                  r="7"
+                  stroke={accent}
+                  strokeWidth="2"
+                  fill="none"
+                  className="animate-pulse"
+                />
+                <circle cx="87" cy="54" r="2.5" fill={accent} />
+                <circle
+                  cx="113"
+                  cy="54"
+                  r="7"
+                  stroke={accent}
+                  strokeWidth="2"
+                  fill="none"
+                  className="animate-pulse"
+                />
+                <circle cx="113" cy="54" r="2.5" fill={accent} />
+              </g>
+            )}
+
+            {mood === 'sin_senal' && (
+              <g stroke="#ef4444" strokeWidth="2.6" strokeLinecap="round">
+                <path d="M82 49 L90 57 M90 49 L82 57" />
+                <path d="M110 49 L118 57 M118 49 L110 57" />
+              </g>
+            )}
+
+            {mood === 'celebrar' && (
+              <g stroke="#0f172a" strokeWidth="3" strokeLinecap="round" fill="none">
+                <path d="M81 56 Q87 48 93 56" />
+                <path d="M107 56 Q113 48 119 56" />
               </g>
             )}
 
@@ -324,8 +396,8 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
               <g fill="none" stroke={accent}>
                 <circle
                   cx="100"
-                  cy="57"
-                  r="34"
+                  cy="56"
+                  r="36"
                   strokeWidth="1.8"
                   opacity="0.55"
                   className="animate-ping"
@@ -333,8 +405,8 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
                 />
                 <circle
                   cx="100"
-                  cy="57"
-                  r="45"
+                  cy="56"
+                  r="47"
                   strokeWidth="1.2"
                   opacity="0.35"
                   className="animate-ping"
@@ -351,9 +423,9 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
             {mood === 'sin_senal' && (
               <ellipse
                 cx="100"
-                cy="57"
-                rx="37"
-                ry="31"
+                cy="56"
+                rx="39"
+                ry="32"
                 fill="none"
                 stroke="#ef4444"
                 strokeWidth="1.6"
