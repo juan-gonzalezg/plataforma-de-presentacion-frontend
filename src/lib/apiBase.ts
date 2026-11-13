@@ -13,7 +13,9 @@
  * /api/* apuntan al propio dominio del frontend, que no tiene backend
  * y por lo tanto no responde nada (la app se ve "vacía").
  */
-export const API_BASE_URL: string = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
+export const API_BASE_URL: string = (
+  import.meta.env?.VITE_API_BASE_URL ?? ''
+).replace(/\/+$/, '');
 
 export function apiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;

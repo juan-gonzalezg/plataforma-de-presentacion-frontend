@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { WifiOff } from 'lucide-react';
 import { usePresentationStore } from './store/usePresentationStore';
 import { P01_Home } from './components/P01_Home';
 import { P02_Presentacion } from './components/P02_Presentacion';
@@ -21,6 +22,22 @@ export const App: React.FC = () => {
     contrastMode,
     fontSize
   } = usePresentationStore();
+
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // HU-RES-02: los temas y el tamaño de fuente se aplican en <html> para que
   // afecten a toda la interfaz (incluidos body y los rem de Tailwind).
@@ -102,6 +119,19 @@ export const App: React.FC = () => {
       {currentView === 'notebooklm' && <P03_NotebookLM />}
       {/* Bitácora global (HU-RES-03): exportación e importación desde cualquier vista. */}
       <SessionLogDrawer />
+
+      {/* Estado de red: el material preparado sigue disponible sin conexión. */}
+      {!isOnline && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-4 z-[60] flex items-center gap-2 rounded-full border border-amber-500/40 bg-slate-950/95 px-4 py-2 text-xs text-amber-200 shadow-xl"
+          title="El chat y las descargas requieren internet; los módulos guardados se abren desde la caché local."
+        >
+          <WifiOff className="h-4 w-4 text-amber-400" />
+          <span>Sin conexión · los módulos guardados siguen disponibles</span>
+        </div>
+      )}
     </div>
   );
 };

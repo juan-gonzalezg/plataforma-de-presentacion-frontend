@@ -17,11 +17,19 @@ import {
   History,
   RotateCcw,
   AlertTriangle,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
 import { AccessibilityControls } from './AccessibilityControls';
+import {
+  clearOfflineCache,
+  getOfflineCacheInfo,
+  prepareOfflineCache,
+  supportsOfflineCache
+} from '../lib/offlineCache';
+import type { OfflineCacheInfo } from '../lib/offlineCache';
 
 export const P01_Home: React.FC = () => {
   const { 
@@ -46,6 +54,18 @@ export const P01_Home: React.FC = () => {
   const [downloadingTopicId, setDownloadingTopicId] = React.useState<string | null>(null);
   const [downloadNotice, setDownloadNotice] = React.useState<{
     kind: 'error' | 'success';
+    message: string;
+  } | null>(null);
+
+  // El modo offline real necesita service worker y Cache API; se activa en la
+  // compilación de producción.
+  const offlineSupported =
+    Boolean(import.meta.env.PROD) && supportsOfflineCache();
+  const [offlineInfo, setOfflineInfo] = React.useState<OfflineCacheInfo | null>(null);
+  const [offlinePrep, setOfflinePrep] = React.useState<{
+    status: 'working' | 'done' | 'error';
+    done: number;
+    total: number;
     message: string;
   } | null>(null);
 
@@ -103,6 +123,24 @@ export const P01_Home: React.FC = () => {
     loadTopics();
   }, [loadTopics]);
 
+  // Refresca el contador de módulos guardados cuando cambia la lista.
+  useEffect(() => {
+    if (!offlineSupported) return;
+
+    let cancelled = false;
+    getOfflineCacheInfo(topics)
+      .then((info) => {
+        if (!cancelled) setOfflineInfo(info);
+      })
+      .catch(() => {
+        if (!cancelled) setOfflineInfo(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [topics, offlineSupported]);
+
   // Sesión recuperada tras recargar: el usuario puede volver a la lámina
   // donde se quedó o descartar por completo la sesión guardada.
   const handleDiscardSession = () => {
@@ -114,6 +152,129 @@ export const P01_Home: React.FC = () => {
       return;
     }
     resetStoredSession();
+  };
+
+  const handlePrepareOffline = async () => {
+    if (offlinePrep?.status === 'working') return;
+
+    if (!offlineSupported) {
+      setOfflinePrep({
+        status: 'error',
+        done: 0,
+        total: 0,
+        message:
+          'El modo sin conexión está disponible en la compilación de producción (npm run build && npm run preview).'
+      });
+      return;
+    }
+
+    if (topics.length === 0) {
+      setOfflinePrep({
+        status: 'error',
+        done: 0,
+        total: 0,
+        message:
+          'No hay módulos para guardar. Conéctate, sincroniza Supabase y vuelve a intentarlo.'
+      });
+      return;
+    }
+
+    setOfflinePrep({
+      status: 'working',
+      done: 0,
+      total: topics.length,
+      message:
+        'Guardando diapositivas y notas de cada módulo. Puede tardar unos segundos.'
+    });
+    setRobotSpeech('Preparando los módulos para consultarlos sin conexión...', 5000);
+
+    try {
+      const result = await prepareOfflineCache(topics, {
+        onProgress: (done, total) => {
+          // El primer paso es el índice de módulos, no un módulo.
+          const moduleDone = Math.max(0, done - 1);
+          const moduleTotal = Math.max(0, total - 1);
+          setOfflinePrep((previous) =>
+            previous
+              ? { ...previous, done: moduleDone, total: moduleTotal }
+              : previous
+          );
+        }
+      });
+
+      const info = await getOfflineCacheInfo(topics);
+      setOfflineInfo(info);
+
+      if (result.failed.length > 0) {
+        setOfflinePrep({
+          status: 'error',
+          done: result.cached,
+          total: result.total,
+          message: `Se guardaron ${result.cached} de ${result.total} módulos. ${result.failed.length} no se pudieron descargar; revisa la conexión y vuelve a intentarlo.`
+        });
+        setRobotSpeech(
+          'Algunos módulos no se pudieron guardar para uso sin conexión.',
+          5000
+        );
+      } else {
+        setOfflinePrep({
+          status: 'done',
+          done: result.cached,
+          total: result.total,
+          message: `${result.cached} módulos listos para consultar sin conexión. El chat y las descargas siguen requiriendo internet.`
+        });
+        setRobotSpeech(
+          `Modo sin conexión listo: ${result.cached} módulos guardados.`,
+          5000
+        );
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No se pudo preparar el modo sin conexión.';
+      setOfflinePrep({
+        status: 'error',
+        done: 0,
+        total: topics.length,
+        message
+      });
+      setRobotSpeech(message, 6000);
+    }
+  };
+
+  const handleClearOffline = async () => {
+    if (
+      !window.confirm(
+        '¿Borrar el material guardado para uso sin conexión? La sesión, el chat y las notas adhesivas se conservan.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await clearOfflineCache();
+      const info = await getOfflineCacheInfo(topics);
+      setOfflineInfo(info);
+      setOfflinePrep({
+        status: 'done',
+        done: 0,
+        total: topics.length,
+        message:
+          'Material sin conexión borrado. Los módulos volverán a guardarse cuando los visites con conexión.'
+      });
+      setRobotSpeech('Material sin conexión borrado.', 3500);
+    } catch (err) {
+      setOfflinePrep({
+        status: 'error',
+        done: 0,
+        total: topics.length,
+        message:
+          err instanceof Error
+            ? err.message
+            : 'No se pudo borrar el material guardado.'
+      });
+    }
   };
 
   const savedSlideNumber =
@@ -166,6 +327,32 @@ export const P01_Home: React.FC = () => {
             <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isLoadingTopics ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Sincronizar Supabase</span>
           </button>
+
+          {offlineSupported && (
+            <button
+              onClick={handlePrepareOffline}
+              disabled={offlinePrep?.status === 'working' || topics.length === 0}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 hover:bg-slate-850 border border-emerald-500/40 text-xs text-emerald-300 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+              title={
+                offlineInfo
+                  ? `${offlineInfo.cached} de ${offlineInfo.total} módulos guardados para consulta sin conexión. El chat y las descargas requieren internet.`
+                  : 'Guardar todos los módulos en este navegador para consultarlos sin internet'
+              }
+            >
+              <Download
+                className={`w-3.5 h-3.5 text-emerald-400 ${
+                  offlinePrep?.status === 'working' ? 'animate-bounce' : ''
+                }`}
+              />
+              <span className="hidden sm:inline">
+                {offlinePrep?.status === 'working'
+                  ? `Guardando ${offlinePrep.done}/${offlinePrep.total}`
+                  : `Preparar offline${
+                      offlineInfo ? ` (${offlineInfo.cached}/${offlineInfo.total})` : ''
+                    }`}
+              </span>
+            </button>
+          )}
 
           <div
             className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs ${
@@ -309,6 +496,84 @@ export const P01_Home: React.FC = () => {
             >
               <X className="h-3.5 w-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* Estado de la preparación para uso sin conexión */}
+        {offlinePrep && (
+          <div
+            className={`mb-6 flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left ${
+              offlinePrep.status === 'error'
+                ? 'border-amber-500/30 bg-amber-500/5'
+                : offlinePrep.status === 'done'
+                  ? 'border-emerald-500/30 bg-emerald-500/5'
+                  : 'border-cyan-500/30 bg-cyan-500/5'
+            }`}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              {offlinePrep.status === 'working' ? (
+                <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-cyan-400" />
+              ) : offlinePrep.status === 'done' ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p
+                  className={`text-sm font-semibold ${
+                    offlinePrep.status === 'error'
+                      ? 'text-amber-200'
+                      : offlinePrep.status === 'done'
+                        ? 'text-emerald-200'
+                        : 'text-cyan-200'
+                  }`}
+                >
+                  {offlinePrep.status === 'working'
+                    ? 'Preparando modo sin conexión'
+                    : offlinePrep.status === 'done'
+                      ? 'Modo sin conexión disponible'
+                      : 'Preparación sin conexión incompleta'}
+                </p>
+                <p className="mt-0.5 break-words text-xs leading-relaxed text-slate-400">
+                  {offlinePrep.message}
+                </p>
+                {offlinePrep.status === 'working' && (
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-cyan-400 transition-all duration-300"
+                      style={{
+                        width: `${Math.round(
+                          (offlinePrep.done / Math.max(1, offlinePrep.total)) * 100
+                        )}%`
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {offlinePrep.status !== 'working' &&
+                offlineInfo &&
+                offlineInfo.cached > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearOffline}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-[11px] text-slate-400 transition-colors hover:border-red-500/50 hover:text-red-300"
+                    title="Borrar el material guardado para consulta sin conexión"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Borrar offline</span>
+                  </button>
+                )}
+              <button
+                type="button"
+                onClick={() => setOfflinePrep(null)}
+                className="shrink-0 rounded p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
+                title="Cerrar aviso"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         )}
 
