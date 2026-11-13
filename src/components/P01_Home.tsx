@@ -30,6 +30,7 @@ import {
   supportsOfflineCache
 } from '../lib/offlineCache';
 import type { OfflineCacheInfo } from '../lib/offlineCache';
+import { ASSISTANT_GREETING, ASSISTANT_NAME } from '../lib/brand';
 
 export const P01_Home: React.FC = () => {
   const { 
@@ -312,7 +313,7 @@ export const P01_Home: React.FC = () => {
               Presentación Interactiva <span className="text-cyan-400">&</span> Asistente RAG
             </h1>
             <p className="text-xs text-slate-400">
-              Plataforma Educativa con Robot 2D y Documento de Notas Vivas
+              Plataforma Educativa con {ASSISTANT_NAME} (robot 2D) y Documento de Notas Vivas
             </p>
           </div>
         </div>
@@ -385,14 +386,14 @@ export const P01_Home: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero Central con Robot y Título */}
+      {/* Hero Central con el asistente y Título */}
       <main className="my-auto py-10 z-10 flex flex-col items-center max-w-5xl mx-auto w-full">
-        {/* Robot saludando */}
+        {/* El asistente saluda */}
         <div className="mb-6 flex flex-col items-center">
           <RobotAvatar
             mood={robotMood}
             size="hero"
-            speechBubble="¡Hola! Soy tu asistente de presentación. Elige un módulo para comenzar."
+            speechBubble={ASSISTANT_GREETING}
             onClick={() => setRobotMood('celebrar', 1500)}
           />
         </div>

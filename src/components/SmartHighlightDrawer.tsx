@@ -6,6 +6,7 @@ import { PdfHighlightViewer } from './PdfHighlightViewer';
 import { SourceDocument } from './SourceDocument';
 import { parseNotesBlocks } from '../lib/notes';
 import { buildNotesMarkdown, downloadText, fileStamp, slugify } from '../lib/sessionExport';
+import { ASSISTANT_NAME } from '../lib/brand';
 
 export const SmartHighlightDrawer: React.FC = () => {
   const { 
@@ -123,13 +124,15 @@ export const SmartHighlightDrawer: React.FC = () => {
         </div>
       </div>
 
-      {/* Mini Robot Tutor en la cabecera del drawer y botón de descarga */}
+      {/* Mini asistente en la cabecera del drawer y botón de descarga */}
       <div className="px-4 py-2.5 bg-slate-850/80 border-b border-slate-800/80 flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           <RobotAvatar mood={activeHighlightBlockId ? 'apuntar_puntero' : 'idle_atento'} size="sm" />
           <div className="text-xs truncate">
             <p className="font-medium text-cyan-300 truncate">
-              {activeHighlightBlockId ? 'Robot Tutor: Señalando párrafo exacto' : 'Robot Tutor: Escuchando preguntas'}
+              {activeHighlightBlockId
+                ? `${ASSISTANT_NAME}: Señalando párrafo exacto`
+                : `${ASSISTANT_NAME}: Escuchando preguntas`}
             </p>
             <p className="text-[11px] text-slate-400">
               {activeHighlightBlockId ? `Bloque activo: #${activeHighlightBlockId}` : 'Presiona Q para consultar'}

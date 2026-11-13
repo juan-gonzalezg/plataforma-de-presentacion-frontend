@@ -30,6 +30,7 @@ import {
   slugify
 } from '../lib/sessionExport';
 import { ChatSource, HighlightBbox } from '../types';
+import { ASSISTANT_NAME } from '../lib/brand';
 
 type RightTab = 'documento' | 'fragmentos' | 'web';
 
@@ -781,7 +782,7 @@ export const P03_NotebookLM: React.FC = () => {
             )}
           </div>
 
-          {/* CUARTEL DEL ROBOT: Buscador Bibliotecario Fijo */}
+          {/* Cuartel del asistente: buscador bibliotecario fijo */}
           <div className="p-3 shrink-0">
             <div className="flex items-center gap-3 rounded-2xl border border-purple-500/30 bg-slate-900/90 p-3 shadow-lg">
               <RobotAvatar
@@ -790,7 +791,7 @@ export const P03_NotebookLM: React.FC = () => {
                 onClick={() => setRobotMood('buscar_antena', 1500)}
               />
               <div className="text-xs">
-                <p className="font-bold text-purple-300">Cuartel del Robot: Bibliotecario</p>
+                <p className="font-bold text-purple-300">{ASSISTANT_NAME} · Bibliotecario</p>
                 <p className="text-[11px] text-slate-400">
                   {rightTab === 'documento'
                     ? hasMarkdownNotes

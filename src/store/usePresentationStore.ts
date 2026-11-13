@@ -9,6 +9,7 @@ import {
   persistSessionSnapshot
 } from '../lib/sessionPersistence';
 import { buildImportedSession } from '../lib/sessionImport';
+import { ASSISTANT_NAME } from '../lib/brand';
 import type { ImportMode, SessionBackup } from '../lib/sessionImport';
 import { 
   AppView, 
@@ -179,7 +180,7 @@ export const usePresentationStore = create<PresentationStore>()(
   isSessionLogOpen: false,
 
   robotMood: 'idle_atento',
-  robotSpeechBubble: '¡Hola! Selecciona un módulo para comenzar la sesión.',
+  robotSpeechBubble: `¡Hola! Soy ${ASSISTANT_NAME}. Selecciona un módulo para comenzar la sesión.`,
 
   activeHighlightBlockId: null,
   activeHighlightPage: null,
@@ -1061,7 +1062,7 @@ export const usePresentationStore = create<PresentationStore>()(
       isSearching: false,
       searchErrorToast: null,
       robotMood: 'idle_atento',
-      robotSpeechBubble: 'Sesión borrada. Selecciona un módulo para comenzar.'
+      robotSpeechBubble: `Sesión borrada. Soy ${ASSISTANT_NAME}; selecciona un módulo para comenzar.`
     });
   },
 

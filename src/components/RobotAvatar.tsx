@@ -1,5 +1,6 @@
 import React from 'react';
 import { RobotMood } from '../types';
+import { ASSISTANT_NAME } from '../lib/brand';
 
 interface RobotAvatarProps {
   mood: RobotMood;
@@ -8,6 +9,22 @@ interface RobotAvatarProps {
   className?: string;
   onClick?: () => void;
 }
+
+/**
+ * Etiquetas visibles del estado del asistente. Los nombres internos de los
+ * estados se conservan para no romper el store ni las animaciones existentes.
+ */
+const MOOD_LABEL: Record<RobotMood, string> = {
+  idle_atento: 'En espera',
+  empujar_pantalla: 'Presentando',
+  apuntar_puntero: 'Señalando',
+  buscar_antena: 'Buscando',
+  sin_senal: 'Sin señal',
+  celebrar: 'Celebrando'
+};
+
+const BODY_PATH =
+  'M100 78 C80 78 66 90 58 108 C46 132 44 156 56 169 C65 178 81 181 100 181 C119 181 135 178 144 169 C156 156 154 132 142 108 C134 90 120 78 100 78 Z';
 
 export const RobotAvatar: React.FC<RobotAvatarProps> = ({
   mood,
@@ -21,13 +38,55 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
     sm: 'w-16 h-16',
     md: 'w-24 h-24',
     lg: 'w-36 h-36',
-    hero: 'w-52 h-52'
+    hero: 'w-52 h-52 sm:w-64 sm:h-64'
+  };
+
+  // IDs únicos: puede haber varios avatares montados a la vez.
+  const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
+  const bodyGradientId = `logos-body-${uid}`;
+  const headGradientId = `logos-head-${uid}`;
+  const limbGradientId = `logos-limb-${uid}`;
+  const bodyClipId = `logos-clip-${uid}`;
+
+  const accent =
+    mood === 'sin_senal'
+      ? '#ef4444'
+      : mood === 'celebrar'
+        ? '#10b981'
+        : mood === 'apuntar_puntero'
+          ? '#f59e0b'
+          : '#22d3ee';
+
+  const bodyAnimation =
+    mood === 'empujar_pantalla'
+      ? 'translate-x-2 rotate-3'
+      : mood === 'celebrar'
+        ? 'animate-bounce'
+        : 'animate-float-slow';
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!onClick) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
   };
 
   return (
-    <div 
-      className={`relative inline-flex flex-col items-center select-none cursor-pointer transition-transform hover:scale-105 ${className}`}
+    <div
+      className={`relative inline-flex flex-col items-center select-none ${
+        onClick ? 'cursor-pointer transition-transform hover:scale-105' : ''
+      } ${className}`}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={`${ASSISTANT_NAME}, ${MOOD_LABEL[mood].toLowerCase()}`}
+      title={
+        onClick
+          ? `${ASSISTANT_NAME} · ${MOOD_LABEL[mood]} (clic para interactuar)`
+          : `${ASSISTANT_NAME} · ${MOOD_LABEL[mood]}`
+      }
     >
       {/* Burbuja de diálogo contextual (Speech Bubble) */}
       {speechBubble && (
@@ -38,235 +97,308 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
         </div>
       )}
 
-      {/* SVG del Robot 2D con estados dinámicos */}
+      {/* SVG del asistente: silueta blanca e inflable, ojos mínimos */}
       <div className={`relative ${sizeMap[size]} transition-all duration-300`}>
         <svg
           viewBox="0 0 200 200"
-          className="w-full h-full drop-shadow-[0_8px_16px_rgba(0,240,255,0.25)]"
+          className="w-full h-full drop-shadow-[0_10px_18px_rgba(34,211,238,0.18)] drop-shadow-[0_4px_8px_rgba(15,23,42,0.18)]"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-label={`${ASSISTANT_NAME}, robot asistente`}
         >
           <defs>
-            {/* Gradientes premium */}
-            <linearGradient id="robotBody" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#1e293b" />
-              <stop offset="50%" stopColor="#334155" />
-              <stop offset="100%" stopColor="#0f172a" />
+            <linearGradient id={bodyGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="55%" stopColor="#f1f5f9" />
+              <stop offset="100%" stopColor="#d7e2ee" />
             </linearGradient>
-            <linearGradient id="visorGlass" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#020617" />
-              <stop offset="100%" stopColor="#0f172a" />
+            <linearGradient id={headGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="70%" stopColor="#f8fafc" />
+              <stop offset="100%" stopColor="#e6edf5" />
             </linearGradient>
-            <linearGradient id="cyanNeon" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#00f0ff" />
-              <stop offset="100%" stopColor="#0284c7" />
+            <linearGradient id={limbGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="100%" stopColor="#e2e8f0" />
             </linearGradient>
-            <linearGradient id="goldNeon" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#facc15" />
-              <stop offset="100%" stopColor="#eab308" />
-            </linearGradient>
+            <clipPath id={bodyClipId}>
+              <path d={BODY_PATH} />
+            </clipPath>
           </defs>
 
           {/* Sombra proyectada en el suelo */}
-          <ellipse 
-            cx="100" 
-            cy="185" 
-            rx={mood === 'empujar_pantalla' ? "55" : "45"} 
-            ry="10" 
-            fill="rgba(0, 240, 255, 0.15)"
-            className="animate-pulse"
-          />
+          <ellipse cx="100" cy="194" rx="46" ry="6.5" fill="#020617" opacity="0.5" />
+          <ellipse cx="100" cy="194" rx="34" ry="4.5" fill="#22d3ee" opacity="0.16" />
 
-          {/* Grupo Principal con animación de flotación / empuje */}
-          <g className={`transition-all duration-300 ${
-            mood === 'empujar_pantalla' ? 'translate-x-3 rotate-6' : 
-            mood === 'celebrar' ? 'animate-bounce' : 
-            'animate-float-slow'
-          }`}>
-
-            {/* ANTENA */}
-            <line x1="100" y1="42" x2="100" y2="20" stroke="#64748b" strokeWidth="4" strokeLinecap="round" />
-            
-            {/* Foco de la antena */}
-            <circle 
-              cx="100" 
-              cy="16" 
-              r="8" 
-              fill={
-                mood === 'sin_senal' ? '#ef4444' : 
-                mood === 'celebrar' ? '#10b981' : 
-                '#00f0ff'
-              }
-              className={mood === 'buscar_antena' ? 'animate-ping' : 'animate-pulse'}
+          {/* Grupo principal con animación de flotación / empuje */}
+          <g className={`origin-center transition-all duration-300 ${bodyAnimation}`}>
+            {/* PIERNAS CORTAS */}
+            <rect
+              x="78"
+              y="162"
+              width="20"
+              height="31"
+              rx="10"
+              fill={`url(#${limbGradientId})`}
+              stroke="#c3d0df"
+              strokeWidth="1.5"
+            />
+            <rect
+              x="102"
+              y="162"
+              width="20"
+              height="31"
+              rx="10"
+              fill={`url(#${limbGradientId})`}
+              stroke="#c3d0df"
+              strokeWidth="1.5"
             />
 
-            {/* Ondas electromagnéticas de búsqueda si está en 'buscar_antena' */}
-            {mood === 'buscar_antena' && (
-              <>
-                <circle cx="100" cy="16" r="16" stroke="#00f0ff" strokeWidth="2" strokeOpacity="0.8" className="animate-ping" />
-                <circle cx="100" cy="16" r="24" stroke="#00f0ff" strokeWidth="1.5" strokeOpacity="0.4" className="animate-ping" style={{ animationDelay: '200ms' }} />
-              </>
+            {/* CUERPO INFLABLE EN FORMA DE PERA */}
+            <path
+              d={BODY_PATH}
+              fill={`url(#${bodyGradientId})`}
+              stroke="#c3d0df"
+              strokeWidth="1.8"
+            />
+
+            {/* Sombras suaves para dar volumen sin salir del cuerpo */}
+            <g clipPath={`url(#${bodyClipId})`}>
+              <ellipse cx="76" cy="128" rx="24" ry="34" fill="#ffffff" opacity="0.65" />
+              <ellipse cx="133" cy="142" rx="22" ry="32" fill="#c3d0df" opacity="0.45" />
+              <ellipse cx="100" cy="174" rx="48" ry="16" fill="#c3d0df" opacity="0.28" />
+            </g>
+
+            {/* INSIGNIA / PUERTO EN EL PECHO */}
+            <circle
+              cx="122"
+              cy="103"
+              r="7.5"
+              fill="#f8fafc"
+              stroke="#c8d4e2"
+              strokeWidth="1.6"
+            />
+            {mood === 'sin_senal' ? (
+              <path
+                d="M119 100 L125 106 M125 100 L119 106"
+                stroke="#ef4444"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            ) : (
+              <circle cx="122" cy="103" r="3" fill={accent} className="animate-pulse" />
             )}
 
-            {/* OREJAS / SENSORES LATERALES */}
-            <rect x="42" y="70" width="8" height="24" rx="4" fill="#475569" />
-            <rect x="150" y="70" width="8" height="24" rx="4" fill="#475569" />
-            <circle cx="46" cy="82" r="2.5" fill="#00f0ff" />
-            <circle cx="154" cy="82" r="2.5" fill="#00f0ff" />
-
-            {/* CABEZA */}
-            <rect 
-              x="50" 
-              y="42" 
-              width="100" 
-              height="80" 
-              rx="24" 
-              fill="url(#robotBody)" 
-              stroke="#64748b" 
-              strokeWidth="3.5"
+            {/* CABEZA REDONDEADA */}
+            <ellipse
+              cx="100"
+              cy="57"
+              rx="31"
+              ry="25"
+              fill={`url(#${headGradientId})`}
+              stroke="#c3d0df"
+              strokeWidth="1.8"
             />
-
-            {/* VISOR FRONTAL */}
-            <rect 
-              x="62" 
-              y="56" 
-              width="76" 
-              height="48" 
-              rx="16" 
-              fill="url(#visorGlass)" 
-              stroke="#1e293b" 
-              strokeWidth="2"
-            />
-
-            {/* REFLEJO DEL VISOR */}
-            <path d="M 68 62 Q 95 64 125 72" stroke="rgba(255,255,255,0.15)" strokeWidth="3" strokeLinecap="round" />
 
             {/* OJOS SEGÚN ESTADO ANÍMICO */}
-            {mood === 'idle_atento' && (
-              <g className="animate-pulse">
-                {/* Ojo izquierdo normal */}
-                <circle cx="85" cy="80" r="8" fill="#00f0ff" />
-                <circle cx="87" cy="78" r="3" fill="#ffffff" />
-                {/* Ojo derecho normal */}
-                <circle cx="115" cy="80" r="8" fill="#00f0ff" />
-                <circle cx="117" cy="78" r="3" fill="#ffffff" />
+            {(mood === 'idle_atento' || mood === 'apuntar_puntero') && (
+              <g>
+                <line
+                  x1="91.5"
+                  y1="55"
+                  x2="108.5"
+                  y2="55"
+                  stroke="#0f172a"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                />
+                <circle cx="87" cy="55" r="4.4" fill="#0f172a" />
+                <circle cx="113" cy="55" r="4.4" fill="#0f172a" />
               </g>
             )}
 
             {mood === 'empujar_pantalla' && (
-              <g>
-                {/* Ojos mirando con esfuerzo hacia el lateral */}
-                <path d="M 78 78 Q 86 84 94 80" stroke="#00f0ff" strokeWidth="4" strokeLinecap="round" />
-                <path d="M 108 78 Q 116 84 124 80" stroke="#00f0ff" strokeWidth="4" strokeLinecap="round" />
-              </g>
-            )}
-
-            {mood === 'apuntar_puntero' && (
-              <g>
-                {/* Ojo enfocado apuntando hacia notas */}
-                <circle cx="83" cy="80" r="7" fill="#facc15" />
-                <circle cx="117" cy="80" r="9" fill="#facc15" />
-                <circle cx="119" cy="78" r="3" fill="#ffffff" />
+              <g stroke="#0f172a" strokeWidth="3" strokeLinecap="round">
+                <path d="M82 56 Q87 51 92 56" />
+                <path d="M108 56 Q113 51 118 56" />
               </g>
             )}
 
             {mood === 'buscar_antena' && (
               <g>
-                {/* Ojos como lentes binoculares escaneando */}
-                <circle cx="84" cy="80" r="10" stroke="#00f0ff" strokeWidth="3" fill="none" className="animate-spin" />
-                <circle cx="84" cy="80" r="4" fill="#00f0ff" />
-                <circle cx="116" cy="80" r="10" stroke="#00f0ff" strokeWidth="3" fill="none" className="animate-spin" />
-                <circle cx="116" cy="80" r="4" fill="#00f0ff" />
+                <circle
+                  cx="87"
+                  cy="55"
+                  r="7"
+                  stroke={accent}
+                  strokeWidth="2"
+                  fill="none"
+                  className="animate-pulse"
+                />
+                <circle cx="87" cy="55" r="2.5" fill={accent} />
+                <circle
+                  cx="113"
+                  cy="55"
+                  r="7"
+                  stroke={accent}
+                  strokeWidth="2"
+                  fill="none"
+                  className="animate-pulse"
+                />
+                <circle cx="113" cy="55" r="2.5" fill={accent} />
               </g>
             )}
 
             {mood === 'sin_senal' && (
-              <g>
-                {/* Ojos de cruz roja / error */}
-                <path d="M 78 74 L 92 88 M 92 74 L 78 88" stroke="#ef4444" strokeWidth="3.5" strokeLinecap="round" />
-                <path d="M 108 74 L 122 88 M 122 74 L 108 88" stroke="#ef4444" strokeWidth="3.5" strokeLinecap="round" />
+              <g stroke="#ef4444" strokeWidth="2.6" strokeLinecap="round">
+                <path d="M82 50 L90 58 M90 50 L82 58" />
+                <path d="M110 50 L118 58 M118 50 L110 58" />
               </g>
             )}
 
             {mood === 'celebrar' && (
-              <g>
-                {/* Ojos felices de arcoíris / estrella */}
-                <path d="M 76 83 Q 85 73 94 83" stroke="#10b981" strokeWidth="4" strokeLinecap="round" />
-                <path d="M 106 83 Q 115 73 124 83" stroke="#10b981" strokeWidth="4" strokeLinecap="round" />
-                {/* Sonrisa alegre */}
-                <path d="M 94 92 Q 100 97 106 92" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" />
+              <g stroke="#0f172a" strokeWidth="3" strokeLinecap="round" fill="none">
+                <path d="M81 57 Q87 49 93 57" />
+                <path d="M107 57 Q113 49 119 57" />
               </g>
             )}
-
-            {/* CUELLO / CONECTOR */}
-            <rect x="90" y="122" width="20" height="10" rx="3" fill="#475569" />
-
-            {/* CUERPO / TORSO */}
-            <path 
-              d="M 68 132 L 132 132 L 124 175 L 76 175 Z" 
-              fill="url(#robotBody)" 
-              stroke="#64748b" 
-              strokeWidth="3.5"
-            />
-
-            {/* PANTALLA EN EL PECHO (CORE) */}
-            <rect x="85" y="142" width="30" height="22" rx="6" fill="#020617" stroke="#1e293b" strokeWidth="1.5" />
-            <circle 
-              cx="100" 
-              cy="153" 
-              r="6" 
-              fill={
-                mood === 'sin_senal' ? '#ef4444' :
-                mood === 'celebrar' ? '#10b981' :
-                mood === 'apuntar_puntero' ? '#facc15' :
-                '#00f0ff'
-              }
-              className="animate-pulse" 
-            />
 
             {/* BRAZOS SEGÚN ESTADO */}
-            {mood === 'empujar_pantalla' ? (
-              // Brazos hacia la derecha empujando
-              <g>
-                <path d="M 66 142 Q 80 150 95 140" stroke="#64748b" strokeWidth="5" strokeLinecap="round" fill="none" />
-                <path d="M 132 142 L 170 135" stroke="#64748b" strokeWidth="6" strokeLinecap="round" fill="none" />
-                <circle cx="174" cy="134" r="7" fill="#00f0ff" />
+            {mood === 'celebrar' ? (
+              <g strokeLinecap="round" fill="none">
+                <path d="M60 104 C46 92 42 76 46 64" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M60 104 C46 92 42 76 46 64" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="46" cy="61" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+                <path d="M140 104 C154 92 158 76 154 64" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M140 104 C154 92 158 76 154 64" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="154" cy="61" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+              </g>
+            ) : mood === 'empujar_pantalla' ? (
+              <g strokeLinecap="round" fill="none">
+                {/* Brazo izquierdo en reposo */}
+                <path d="M60 104 C48 116 42 134 44 148" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M60 104 C48 116 42 134 44 148" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="44" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+                {/* Brazo derecho extendido, como empujando la lámina */}
+                <path d="M140 106 C154 104 168 100 180 98" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M140 106 C154 104 168 100 180 98" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="183" cy="97" r="7.5" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
               </g>
             ) : mood === 'apuntar_puntero' ? (
-              // Brazo derecho señalando con puntero láser hacia notas
-              <g>
-                <path d="M 68 142 Q 55 155 60 168" stroke="#64748b" strokeWidth="5" strokeLinecap="round" fill="none" />
-                <path d="M 130 142 L 175 110" stroke="#64748b" strokeWidth="5.5" strokeLinecap="round" fill="none" />
-                <circle cx="178" cy="108" r="6" fill="#facc15" />
-                {/* Haz láser */}
-                <line x1="184" y1="104" x2="215" y2="80" stroke="#facc15" strokeWidth="2.5" strokeDasharray="3 3" className="animate-pulse" />
-              </g>
-            ) : mood === 'celebrar' ? (
-              // Brazos levantados en victoria
-              <g>
-                <path d="M 68 142 Q 45 125 50 100" stroke="#64748b" strokeWidth="5.5" strokeLinecap="round" fill="none" />
-                <circle cx="50" cy="98" r="6" fill="#10b981" />
-                <path d="M 132 142 Q 155 125 150 100" stroke="#64748b" strokeWidth="5.5" strokeLinecap="round" fill="none" />
-                <circle cx="150" cy="98" r="6" fill="#10b981" />
+              <g strokeLinecap="round" fill="none">
+                {/* Brazo izquierdo en reposo */}
+                <path d="M60 104 C48 116 42 134 44 148" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M60 104 C48 116 42 134 44 148" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="44" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+                {/* Brazo derecho señalando */}
+                <path d="M140 104 C154 98 168 90 180 86" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M140 104 C154 98 168 90 180 86" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="182" cy="85" r="7.5" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+                <circle cx="190" cy="82" r="4.5" fill="#f59e0b" className="animate-pulse" />
+                <line
+                  x1="190"
+                  y1="82"
+                  x2="199"
+                  y2="78"
+                  stroke="#f59e0b"
+                  strokeWidth="2"
+                  strokeDasharray="3 3"
+                  strokeLinecap="round"
+                  className="animate-pulse"
+                />
               </g>
             ) : (
-              // Brazos reposo normal
-              <g>
-                <path d="M 68 142 Q 52 155 58 168" stroke="#64748b" strokeWidth="5" strokeLinecap="round" fill="none" />
-                <circle cx="58" cy="170" r="5" fill="#475569" />
-                <path d="M 132 142 Q 148 155 142 168" stroke="#64748b" strokeWidth="5" strokeLinecap="round" fill="none" />
-                <circle cx="142" cy="170" r="5" fill="#475569" />
+              <g strokeLinecap="round" fill="none">
+                <path d="M60 104 C48 116 42 134 44 148" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M60 104 C48 116 42 134 44 148" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="44" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
+                <path d="M140 104 C152 116 158 134 156 148" stroke="#c3d0df" strokeWidth="17" />
+                <path d="M140 104 C152 116 158 134 156 148" stroke="#ffffff" strokeWidth="13" />
+                <circle cx="156" cy="150" r="8" fill="#ffffff" stroke="#c3d0df" strokeWidth="1.6" />
               </g>
             )}
 
+            {/* Anillos de escaneo */}
+            {mood === 'buscar_antena' && (
+              <g fill="none" stroke={accent}>
+                <circle
+                  cx="100"
+                  cy="57"
+                  r="34"
+                  strokeWidth="1.8"
+                  opacity="0.55"
+                  className="animate-ping"
+                  style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+                />
+                <circle
+                  cx="100"
+                  cy="57"
+                  r="45"
+                  strokeWidth="1.2"
+                  opacity="0.35"
+                  className="animate-ping"
+                  style={{
+                    transformBox: 'fill-box',
+                    transformOrigin: 'center',
+                    animationDelay: '250ms'
+                  }}
+                />
+              </g>
+            )}
+
+            {/* Aviso de error alrededor de la cabeza */}
+            {mood === 'sin_senal' && (
+              <ellipse
+                cx="100"
+                cy="57"
+                rx="37"
+                ry="31"
+                fill="none"
+                stroke="#ef4444"
+                strokeWidth="1.6"
+                opacity="0.5"
+                strokeDasharray="5 4"
+              />
+            )}
+
+            {/* Chispas de celebración */}
+            {mood === 'celebrar' && (
+              <g fill={accent}>
+                <circle cx="40" cy="52" r="3" className="animate-pulse" />
+                <circle
+                  cx="160"
+                  cy="52"
+                  r="3"
+                  className="animate-pulse"
+                  style={{ animationDelay: '150ms' }}
+                />
+                <circle
+                  cx="52"
+                  cy="28"
+                  r="2.5"
+                  className="animate-pulse"
+                  style={{ animationDelay: '300ms' }}
+                />
+                <circle
+                  cx="148"
+                  cy="28"
+                  r="2.5"
+                  className="animate-pulse"
+                  style={{ animationDelay: '450ms' }}
+                />
+              </g>
+            )}
           </g>
         </svg>
       </div>
 
-      {/* Etiqueta de estado sutil en modo pequeño */}
-      <span className="mt-1 px-2 py-0.5 rounded-full text-[10px] font-mono tracking-wider uppercase bg-slate-900/80 text-cyan-400/80 border border-slate-700/50">
-        {mood.replace('_', ' ')}
-      </span>
+      {/* Etiqueta de estado: nombre + ánimo actual */}
+      {size !== 'sm' && (
+        <span className="mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-mono tracking-wider uppercase bg-slate-900/80 text-cyan-400/80 border border-slate-700/50 whitespace-nowrap">
+          {ASSISTANT_NAME} · {MOOD_LABEL[mood]}
+        </span>
+      )}
     </div>
   );
 };

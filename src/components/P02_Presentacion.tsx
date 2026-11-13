@@ -269,7 +269,7 @@ export const P02_Presentacion: React.FC = () => {
           )}
         </div>
 
-        {/* Robot 2D reactivo en el escenario (Épica 3: BOT) */}
+        {/* El robot 2D reactivo en el escenario (Épica 3: BOT) */}
         <div
           className={`fixed z-30 transition-all duration-500 ${
             isDrawerOpen ? 'right-[480px]' : 'right-10'
