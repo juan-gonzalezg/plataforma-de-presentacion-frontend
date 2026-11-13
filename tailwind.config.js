@@ -16,10 +16,22 @@ export default {
           600: '#2563eb',
           700: '#1d4ed8',
         },
+        // La paleta slate se resuelve con variables CSS para que los tres
+        // modos de contraste (HU-RES-02) afecten a TODA la interfaz y no solo
+        // a los fondos definidos a mano.
         slate: {
-          850: '#151f32',
-          900: '#0f172a',
-          950: '#080d1a',
+          100: 'rgb(var(--slate-100) / <alpha-value>)',
+          200: 'rgb(var(--slate-200) / <alpha-value>)',
+          300: 'rgb(var(--slate-300) / <alpha-value>)',
+          400: 'rgb(var(--slate-400) / <alpha-value>)',
+          500: 'rgb(var(--slate-500) / <alpha-value>)',
+          600: 'rgb(var(--slate-600) / <alpha-value>)',
+          700: 'rgb(var(--slate-700) / <alpha-value>)',
+          750: 'rgb(var(--slate-750) / <alpha-value>)',
+          800: 'rgb(var(--slate-800) / <alpha-value>)',
+          850: 'rgb(var(--slate-850) / <alpha-value>)',
+          900: 'rgb(var(--slate-900) / <alpha-value>)',
+          950: 'rgb(var(--slate-950) / <alpha-value>)',
         },
         neon: {
           cyan: '#00f0ff',

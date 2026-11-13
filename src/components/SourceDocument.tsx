@@ -35,6 +35,7 @@ export const SourceDocument: React.FC<SourceDocumentProps> = ({
           <section
             key={block.id}
             id={`${idPrefix}${block.id}`}
+            data-notes-block={block.id}
             onClick={() => onSelectBlock?.(block.id)}
             className={`rounded-xl border p-4 transition-all duration-500 ${
               onSelectBlock ? 'cursor-pointer' : ''

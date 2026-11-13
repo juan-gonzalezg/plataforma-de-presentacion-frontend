@@ -1,36 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Sun, Moon, Monitor, Type, Wifi, CheckCircle2, History } from 'lucide-react';
+import {
+  Eye,
+  Sun,
+  Moon,
+  Monitor,
+  Type,
+  Wifi,
+  CheckCircle2,
+  AlertTriangle,
+  History,
+  Brain,
+  Globe,
+  Loader2
+} from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { ContrastMode, FontSizeSetting } from '../types';
-import { apiUrl } from '../lib/apiBase';
 
 export const AccessibilityControls: React.FC = () => {
-  const { 
-    contrastMode, 
-    setContrastMode, 
-    fontSize, 
+  const {
+    contrastMode,
+    setContrastMode,
+    fontSize,
     setFontSize,
     toggleSessionLog,
-    sessionHistory
+    sessionHistory,
+    systemHealth,
+    isCheckingHealth,
+    loadSystemHealth
   } = usePresentationStore();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [isBackendHealthy, setIsBackendHealthy] = useState(true);
 
-  // Comprobar salud periódica del RAG local
+  // HU-HOM-01: validación real del backend y de la base vectorial local.
   useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const res = await fetch(apiUrl('/api/health'));
-        setIsBackendHealthy(res.ok);
-      } catch {
-        setIsBackendHealthy(false);
-      }
-    };
-    checkHealth();
-    const interval = setInterval(checkHealth, 15000);
+    loadSystemHealth();
+    const interval = setInterval(loadSystemHealth, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadSystemHealth]);
+
+  const isHealthy = systemHealth?.status === 'healthy';
+  const isOffline = systemHealth?.status === 'offline';
+  const statusDot = isHealthy
+    ? 'bg-emerald-400'
+    : isOffline
+      ? 'bg-red-400'
+      : 'bg-amber-400';
 
   return (
     <div className="relative">
@@ -41,7 +55,7 @@ export const AccessibilityControls: React.FC = () => {
       >
         <Eye className="w-4 h-4 text-cyan-400" />
         <span className="hidden md:inline">Proyección & Legibilidad</span>
-        <span className={`w-2 h-2 rounded-full ml-1 ${isBackendHealthy ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+        <span className={`w-2 h-2 rounded-full ml-1 ${statusDot}`} />
       </button>
 
       {isOpen && (
@@ -126,14 +140,54 @@ export const AccessibilityControls: React.FC = () => {
             </div>
           </div>
 
-          {/* Estado de Salud RAG */}
-          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-            <span className="flex items-center gap-1.5">
-              <Wifi className="w-3.5 h-3.5 text-emerald-400" /> RAG Local Vectorial:
-            </span>
-            <span className="font-semibold text-emerald-300 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Activo (Disco)
-            </span>
+          {/* Estado real del sistema (HU-HOM-01) */}
+          <div className="pt-2 border-t border-slate-800 space-y-1.5 text-[11px] text-slate-400">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <Wifi className="w-3.5 h-3.5 text-cyan-400" /> RAG Local Vectorial:
+              </span>
+              {isCheckingHealth && !systemHealth ? (
+                <span className="font-semibold text-slate-300 flex items-center gap-1">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verificando...
+                </span>
+              ) : systemHealth?.vectorDbActive ? (
+                <span className="font-semibold text-emerald-300 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Activo ({systemHealth.loadedTopics})
+                </span>
+              ) : (
+                <span className="font-semibold text-amber-300 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" /> No disponible
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <Brain className="w-3.5 h-3.5 text-purple-400" /> Generación LLM:
+              </span>
+              <span
+                className={`font-semibold ${
+                  systemHealth?.llmConfigured ? 'text-emerald-300' : 'text-amber-300'
+                }`}
+              >
+                {systemHealth?.llmConfigured ? 'Conectado' : 'Modo extractivo'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-emerald-400" /> Búsqueda web:
+              </span>
+              <span
+                className={`font-semibold ${
+                  systemHealth?.webConfigured ? 'text-emerald-300' : 'text-slate-400'
+                }`}
+              >
+                {systemHealth?.webConfigured
+                  ? systemHealth.webProvider ?? 'Activa'
+                  : 'Desactivada'}
+              </span>
+            </div>
           </div>
 
           {/* Acceso a Bitácora */}

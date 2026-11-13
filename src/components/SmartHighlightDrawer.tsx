@@ -5,6 +5,7 @@ import { RobotAvatar } from './RobotAvatar';
 import { PdfHighlightViewer } from './PdfHighlightViewer';
 import { SourceDocument } from './SourceDocument';
 import { parseNotesBlocks } from '../lib/notes';
+import { buildNotesMarkdown, downloadText, fileStamp, slugify } from '../lib/sessionExport';
 
 export const SmartHighlightDrawer: React.FC = () => {
   const { 
@@ -36,13 +37,17 @@ export const SmartHighlightDrawer: React.FC = () => {
     try {
       const res = await downloadTopicMaterial(selectedTopic.id, 'pdf');
       if (res) {
-        setRobotSpeech('¡Descarga iniciada! Material oficial listo.', 3500);
+        setRobotSpeech(`¡Descarga iniciada! ${res.file_name}`, 3500);
       } else {
         setRobotSpeech('No se pudo descargar el archivo en este momento.', 3500);
       }
     } catch (err) {
-      console.error('Error al descargar:', err);
-      setRobotSpeech('Error de conexión al obtener el archivo.', 3500);
+      setRobotSpeech(
+        err instanceof Error
+          ? err.message
+          : 'Error de conexión al obtener el archivo.',
+        6000
+      );
     } finally {
       setIsDownloading(false);
     }
@@ -64,14 +69,34 @@ export const SmartHighlightDrawer: React.FC = () => {
   if (!selectedTopic) return null;
 
   const hasMarkdownNotes = Boolean(selectedTopic.notes_markdown);
+  const hasPdf = Boolean(selectedTopic.files?.pdf);
+
+  // Exportación local de los apuntes, independiente de la conexión.
+  const handleExportNotes = () => {
+    downloadText(
+      `notas-${slugify(selectedTopic.title)}-${fileStamp()}.md`,
+      buildNotesMarkdown(selectedTopic)
+    );
+    setRobotSpeech('Apuntes del módulo exportados en Markdown.', 3000);
+  };
 
   return (
-    <aside 
-      className={`fixed top-0 right-0 h-full w-[380px] sm:w-[450px] lg:w-[480px] bg-slate-900/95 border-l border-slate-700/80 shadow-2xl backdrop-blur-xl z-40 flex flex-col transition-transform duration-500 ease-in-out ${
-        isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
-      }`}
-      aria-label="Panel de Notas Vivas"
-    >
+    <>
+      {/* HU-PRS-02: clic en el fondo para replegar el panel. */}
+      {isDrawerOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-slate-950/40 backdrop-blur-[2px] transition-opacity"
+          onClick={toggleDrawer}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside 
+        className={`fixed top-0 right-0 h-full w-[380px] sm:w-[450px] lg:w-[480px] bg-slate-900/95 border-l border-slate-700/80 shadow-2xl backdrop-blur-xl z-40 flex flex-col transition-transform duration-500 ease-in-out ${
+          isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        aria-label="Panel de Notas Vivas"
+      >
       {/* Header del Drawer */}
       <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
         <div className="flex items-center gap-2.5">
@@ -123,23 +148,34 @@ export const SmartHighlightDrawer: React.FC = () => {
           )}
           <button
             type="button"
-            onClick={handleDownload}
-            disabled={isDownloading}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 hover:border-cyan-400/50 text-[11px] font-semibold text-cyan-300 hover:text-cyan-200 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Descargar material oficial de este módulo en PDF"
+            onClick={handleExportNotes}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-400/50 text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 transition-all shadow-sm cursor-pointer"
+            title="Descargar los apuntes de este módulo en Markdown"
           >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
-                <span className="hidden sm:inline">Descargando...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-3 h-3 text-cyan-400" />
-                <span>Descargar material</span>
-              </>
-            )}
+            <Download className="w-3 h-3 text-emerald-400" />
+            <span className="hidden sm:inline">Exportar notas</span>
           </button>
+          {hasPdf && (
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 hover:border-cyan-400/50 text-[11px] font-semibold text-cyan-300 hover:text-cyan-200 transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Descargar material oficial de este módulo en PDF"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
+                  <span className="hidden sm:inline">Descargando...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3 h-3 text-cyan-400" />
+                  <span>Descargar material</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -172,6 +208,7 @@ export const SmartHighlightDrawer: React.FC = () => {
         <span>Presiona <strong className="text-slate-300 font-mono">Q</strong> para hacer preguntas</span>
         <span><strong className="text-slate-300 font-mono">Esc</strong> para cerrar</span>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 };

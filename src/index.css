@@ -4,71 +4,166 @@
 
 @layer base {
   :root {
-    --bg-main: #080d1a;
-    --bg-card: #0f172a;
-    --bg-drawer: #151f32;
-    --text-primary: #f8fafc;
-    --text-muted: #94a3b8;
-    --accent-glow: #00f0ff;
+    /* Paleta slate como tripletes RGB: Tailwind la consume con
+       rgb(var(--slate-N) / <alpha-value>) y así respeta los modificadores
+       de opacidad (bg-slate-900/80, border-slate-700/60, etc.). */
+    --slate-100: 241 245 249;
+    --slate-200: 226 232 240;
+    --slate-300: 203 213 225;
+    --slate-400: 148 163 184;
+    --slate-500: 124 140 163;
+    --slate-600: 71 85 105;
+    --slate-700: 51 65 85;
+    --slate-750: 30 41 59;
+    --slate-800: 30 41 59;
+    --slate-850: 19 28 46;
+    --slate-900: 15 23 42;
+    --slate-950: 6 10 18;
+
     --highlight-bg: rgba(250, 204, 21, 0.25);
     --highlight-border: #facc15;
-    --font-base-size: 1.15rem;
+  }
+
+  /* Tamaño base real: al aplicarse en <html>, escala todos los rem de
+     Tailwind (text-xs, text-sm, text-base, espaciados, etc.). */
+  html {
+    font-size: 18px;
   }
 
   body {
-    background-color: var(--bg-main);
-    color: var(--text-primary);
-    font-size: var(--font-base-size);
+    background-color: rgb(var(--slate-950));
+    color: rgb(var(--slate-100));
+    font-size: 1rem;
     line-height: 1.6;
     overflow-x: hidden;
   }
 }
 
-/* Modos de contraste para proyección (HU-RES-02) */
+/* Modos de contraste para proyección (HU-RES-02).
+   Las clases se aplican en <html> desde App.tsx. */
 .theme-cinema-dark {
-  --bg-main: #060a12;
-  --bg-card: #0f172a;
-  --bg-drawer: #131c2e;
-  --text-primary: #f1f5f9;
-  --text-muted: #94a3b8;
-  --accent-glow: #00f0ff;
+  color-scheme: dark;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 124 140 163;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-750: 30 41 59;
+  --slate-800: 30 41 59;
+  --slate-850: 19 28 46;
+  --slate-900: 15 23 42;
+  --slate-950: 6 10 18;
   --highlight-bg: rgba(0, 240, 255, 0.2);
   --highlight-border: #00f0ff;
 }
 
 .theme-projector-high-contrast {
-  --bg-main: #000000;
-  --bg-card: #0a0a0a;
-  --bg-drawer: #111111;
-  --text-primary: #ffffff;
-  --text-muted: #d4d4d8;
-  --accent-glow: #38bdf8;
+  color-scheme: dark;
+  --slate-100: 255 255 255;
+  --slate-200: 244 244 245;
+  --slate-300: 228 228 231;
+  --slate-400: 212 212 216;
+  --slate-500: 161 161 170;
+  --slate-600: 113 113 122;
+  --slate-700: 63 63 70;
+  --slate-750: 38 38 38;
+  --slate-800: 38 38 38;
+  --slate-850: 17 17 17;
+  --slate-900: 10 10 10;
+  --slate-950: 0 0 0;
   --highlight-bg: rgba(250, 204, 21, 0.4);
   --highlight-border: #facc15;
 }
 
 .theme-clean-light {
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-drawer: #f1f5f9;
-  --text-primary: #0f172a;
-  --text-muted: #475569;
-  --accent-glow: #0284c7;
+  color-scheme: light;
+  /* Invertimos la escala de luminancia: slate-100 pasa a ser texto oscuro
+     y slate-950 fondo claro. Los grises intermedios mantienen contraste AA. */
+  --slate-100: 15 23 42;
+  --slate-200: 30 41 59;
+  --slate-300: 51 65 85;
+  --slate-400: 71 85 105;
+  --slate-500: 100 116 139;
+  --slate-600: 100 116 139;
+  --slate-700: 203 213 225;
+  --slate-750: 226 232 240;
+  --slate-800: 226 232 240;
+  --slate-850: 241 245 249;
+  --slate-900: 255 255 255;
+  --slate-950: 248 250 252;
   --highlight-bg: rgba(254, 240, 138, 0.6);
   --highlight-border: #ca8a04;
 }
 
-/* Tamaños de fuente accesibles */
-.font-size-normal {
-  --font-base-size: 1.15rem; /* ~18.4px */
+/* Ajustes de acento para que el tema claro también cumpla AA: los tonos
+   pastel de los temas oscuros no tienen contraste suficiente sobre blanco. */
+.theme-clean-light .text-cyan-400,
+.theme-clean-light .text-cyan-300 {
+  color: #0e7490;
 }
 
-.font-size-large {
-  --font-base-size: 1.35rem; /* ~21.6px */
+.theme-clean-light .text-cyan-200 {
+  color: #155e75;
 }
 
-.font-size-xlarge {
-  --font-base-size: 1.55rem; /* ~24.8px */
+.theme-clean-light .text-emerald-400,
+.theme-clean-light .text-emerald-300 {
+  color: #047857;
+}
+
+.theme-clean-light .text-emerald-200 {
+  color: #065f46;
+}
+
+.theme-clean-light .text-amber-400,
+.theme-clean-light .text-amber-300 {
+  color: #b45309;
+}
+
+.theme-clean-light .text-amber-200 {
+  color: #92400e;
+}
+
+.theme-clean-light .text-purple-400,
+.theme-clean-light .text-purple-300 {
+  color: #6d28d9;
+}
+
+.theme-clean-light .text-purple-200 {
+  color: #5b21b6;
+}
+
+.theme-clean-light .text-blue-200 {
+  color: #1e40af;
+}
+
+.theme-clean-light .text-red-400,
+.theme-clean-light .text-red-300 {
+  color: #b91c1c;
+}
+
+/* Los botones con acento brillante usan text-slate-950 como texto oscuro. */
+.theme-clean-light .text-slate-950 {
+  color: #0f172a;
+}
+
+.theme-clean-light .hover\:text-white:hover {
+  color: #0f172a;
+}
+
+/* Tamaños de fuente accesibles: se aplican en <html>. */
+html.font-size-normal {
+  font-size: 18px;
+}
+
+html.font-size-large {
+  font-size: 21px;
+}
+
+html.font-size-xlarge {
+  font-size: 25px;
 }
 
 /* Smart Highlight Fluorescente Pulsante (HU-NOT-02) */

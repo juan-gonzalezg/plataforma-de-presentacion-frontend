@@ -24,6 +24,8 @@ export interface Slide {
   speaker_notes?: string;
 }
 
+export type MaterialFileType = 'pdf' | 'pptx' | 'md';
+
 export interface TopicMetadata {
   id: string;
   title: string;
@@ -34,6 +36,9 @@ export interface TopicMetadata {
   icon: string;
   tags: string[];
   summary: string;
+  /** Formatos realmente disponibles en Supabase Storage. */
+  files?: Partial<Record<MaterialFileType, string>>;
+  is_dynamic?: boolean;
 }
 
 export interface TopicDetail extends TopicMetadata {
@@ -133,9 +138,28 @@ export interface LlmStatus {
   mode: 'llm' | 'extractive';
 }
 
+export interface StorageStatus {
+  configured: boolean;
+  bucket: string;
+  public: boolean;
+  last_error?: string | null;
+  discovered_topics: number;
+}
+
+export interface SystemHealth {
+  status: 'healthy' | 'degraded' | 'offline';
+  vectorDbActive: boolean;
+  llmConfigured: boolean;
+  webConfigured: boolean;
+  loadedTopics: number;
+  webProvider?: string;
+  storage?: StorageStatus;
+  checkedAt?: string;
+}
+
 export interface DownloadResponse {
   topic_id: string;
-  file_type: string;
+  file_type: MaterialFileType | string;
   file_name: string;
   file_path: string;
   download_url: string;

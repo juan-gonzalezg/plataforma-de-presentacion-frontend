@@ -13,7 +13,11 @@ import {
   Download,
   Loader2,
   BookOpen,
-  RefreshCw
+  RefreshCw,
+  History,
+  RotateCcw,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
@@ -30,28 +34,66 @@ export const P01_Home: React.FC = () => {
     robotMood,
     setRobotMood,
     setRobotSpeech,
-    downloadTopicMaterial
+    downloadTopicMaterial,
+    systemHealth,
+    loadSystemHealth,
+    selectedTopic,
+    currentSlideIndex,
+    setCurrentView,
+    resetStoredSession
   } = usePresentationStore();
 
   const [downloadingTopicId, setDownloadingTopicId] = React.useState<string | null>(null);
+  const [downloadNotice, setDownloadNotice] = React.useState<{
+    kind: 'error' | 'success';
+    message: string;
+  } | null>(null);
 
-  const handleDownloadMaterial = async (e: React.MouseEvent, topicId: string, topicTitle: string) => {
+  // HU-HOM-01: validar contra el backend que el RAG local esté activo.
+  useEffect(() => {
+    loadSystemHealth();
+    const interval = setInterval(loadSystemHealth, 15000);
+    return () => clearInterval(interval);
+  }, [loadSystemHealth]);
+
+  const ragReady = systemHealth?.status === 'healthy';
+  const ragOffline = systemHealth?.status === 'offline';
+
+  const handleDownloadMaterial = async (
+    e: React.MouseEvent,
+    topicId: string,
+    topicTitle: string,
+    tipo: 'pdf' | 'pptx' | 'md'
+  ) => {
     e.stopPropagation();
     if (downloadingTopicId) return;
 
-    setDownloadingTopicId(topicId);
-    setRobotSpeech(`Preparando descarga del material (${topicTitle})...`, 3000);
+    const key = `${topicId}-${tipo}`;
+    setDownloadingTopicId(key);
+    setDownloadNotice(null);
+    setRobotSpeech(
+      `Preparando descarga en ${tipo.toUpperCase()} (${topicTitle})...`,
+      3000
+    );
 
     try {
-      const res = await downloadTopicMaterial(topicId, 'pdf');
+      const res = await downloadTopicMaterial(topicId, tipo);
       if (res) {
-        setRobotSpeech('¡Descarga iniciada con éxito! Revisa tu navegador.', 3500);
+        const message = `Descarga en ${tipo.toUpperCase()} iniciada: ${res.file_name}`;
+        setDownloadNotice({ kind: 'success', message });
+        setRobotSpeech(`¡${message}! Revisa tu navegador.`, 4000);
       } else {
-        setRobotSpeech('No se pudo completar la descarga en este momento.', 3500);
+        const message = `El archivo ${tipo.toUpperCase()} no está disponible para este módulo.`;
+        setDownloadNotice({ kind: 'error', message });
+        setRobotSpeech(message, 4000);
       }
     } catch (err) {
-      console.error('Error al descargar:', err);
-      setRobotSpeech('Error de conexión al solicitar el archivo.', 3500);
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Error de conexión al solicitar el archivo.';
+      setDownloadNotice({ kind: 'error', message });
+      setRobotSpeech(message, 6000);
     } finally {
       setDownloadingTopicId(null);
     }
@@ -60,6 +102,22 @@ export const P01_Home: React.FC = () => {
   useEffect(() => {
     loadTopics();
   }, [loadTopics]);
+
+  // Sesión recuperada tras recargar: el usuario puede volver a la lámina
+  // donde se quedó o descartar por completo la sesión guardada.
+  const handleDiscardSession = () => {
+    if (
+      !window.confirm(
+        '¿Descartar la sesión guardada? Se eliminarán el módulo activo, el chat, la bitácora y las notas adhesivas de este navegador.'
+      )
+    ) {
+      return;
+    }
+    resetStoredSession();
+  };
+
+  const savedSlideNumber =
+    selectedTopic?.slides?.[currentSlideIndex]?.number ?? currentSlideIndex + 1;
 
   const getTopicIcon = (iconName: string) => {
     switch (iconName) {
@@ -109,9 +167,32 @@ export const P01_Home: React.FC = () => {
             <span className="hidden sm:inline">Sincronizar Supabase</span>
           </button>
 
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-emerald-500/30 text-xs text-emerald-300">
-            <Database className="w-3.5 h-3.5 text-emerald-400" />
-            <span>RAG Vectorial Listo</span>
+          <div
+            className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs ${
+              ragReady
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                : ragOffline
+                  ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+            }`}
+            title={
+              systemHealth
+                ? `Módulos indexados: ${systemHealth.loadedTopics} · LLM: ${
+                    systemHealth.llmConfigured ? 'conectado' : 'modo extractivo'
+                  }`
+                : 'Consultando el estado del backend...'
+            }
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>
+              {!systemHealth
+                ? 'Verificando RAG...'
+                : ragReady
+                  ? `RAG Vectorial Listo (${systemHealth.loadedTopics})`
+                  : ragOffline
+                    ? 'Backend sin conexión'
+                    : 'RAG en modo degradado'}
+            </span>
           </div>
           <AccessibilityControls />
         </div>
@@ -137,6 +218,99 @@ export const P01_Home: React.FC = () => {
             Cada módulo incluye diapositivas interactivas, notas técnicas en Markdown indexadas semánticamente y asistente para preguntas contextuales en vivo.
           </p>
         </div>
+
+        {/* Sesión recuperada del autoguardado local */}
+        {selectedTopic && (
+          <div className="mb-8 flex w-full flex-col gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300">
+                <History className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-cyan-200">
+                  Reanudar sesión guardada
+                </p>
+                <p className="text-xs text-slate-400">
+                  {selectedTopic.title} · Lámina {savedSlideNumber} de{' '}
+                  {selectedTopic.slides?.length ?? selectedTopic.slides_count}
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentView('presentation')}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition-colors hover:bg-cyan-400"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Reanudar
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardSession}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-red-500/50 hover:text-red-300"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Descartar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Diagnóstico de Supabase Storage (errores reales del backend) */}
+        {systemHealth?.storage &&
+          (!systemHealth.storage.configured || systemHealth.storage.last_error) && (
+            <div className="mb-6 flex w-full items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-left">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-amber-200">
+                  Supabase Storage{' '}
+                  {systemHealth.storage.configured
+                    ? 'no está respondiendo'
+                    : 'no está configurado'}
+                </p>
+                <p className="mt-0.5 break-words text-xs leading-relaxed text-slate-400">
+                  {systemHealth.storage.configured
+                    ? systemHealth.storage.last_error
+                    : 'Define SUPABASE_URL y SUPABASE_KEY en el backend para habilitar las descargas reales.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+        {/* Resultado de la última descarga solicitada */}
+        {downloadNotice && (
+          <div
+            className={`mb-6 flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left ${
+              downloadNotice.kind === 'error'
+                ? 'border-red-500/30 bg-red-500/5'
+                : 'border-emerald-500/30 bg-emerald-500/5'
+            }`}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <AlertTriangle
+                className={`mt-0.5 h-4 w-4 shrink-0 ${
+                  downloadNotice.kind === 'error' ? 'text-red-400' : 'text-emerald-400'
+                }`}
+              />
+              <p
+                className={`break-words text-xs leading-relaxed ${
+                  downloadNotice.kind === 'error' ? 'text-red-200' : 'text-emerald-200'
+                }`}
+              >
+                {downloadNotice.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDownloadNotice(null)}
+              className="shrink-0 rounded p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
+              title="Cerrar aviso"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Grilla de Temas (Épica 1: HU-HOM-01) */}
         {isLoadingTopics ? (
@@ -182,28 +356,65 @@ export const P01_Home: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Botón Descargar Material */}
-                <div className="mb-4">
-                  <button
-                    type="button"
-                    onClick={(e) => handleDownloadMaterial(e, topic.id, topic.title)}
-                    disabled={downloadingTopicId === topic.id}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-950/90 hover:bg-cyan-950/40 border border-slate-800 hover:border-cyan-500/50 text-xs font-semibold text-slate-300 hover:text-cyan-300 transition-all shadow-sm group/btn cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={`Descargar presentación de ${topic.title} (PDF)`}
-                  >
-                    {downloadingTopicId === topic.id ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                        <span>Descargando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-3.5 h-3.5 text-cyan-400 group-hover/btn:scale-110 transition-transform" />
-                        <span>Descargar material</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+                {/* Botones de Descarga: solo formatos realmente disponibles (HU-HOM-02) */}
+                {(() => {
+                  const availableFormats = (['pdf', 'pptx', 'md'] as const).filter(
+                    (tipo) => Boolean(topic.files?.[tipo])
+                  );
+
+                  if (availableFormats.length === 0) {
+                    return (
+                      <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-500">
+                        Sin archivos disponibles para descarga.
+                      </div>
+                    );
+                  }
+
+                  const gridClass =
+                    availableFormats.length >= 3
+                      ? 'grid-cols-3'
+                      : availableFormats.length === 2
+                        ? 'grid-cols-2'
+                        : 'grid-cols-1';
+                  const labels = { pdf: 'PDF', pptx: 'PPTX', md: 'MD' } as const;
+
+                  return (
+                    <div className={`mb-4 grid gap-2 ${gridClass}`}>
+                      {availableFormats.map((tipo) => {
+                        const key = `${topic.id}-${tipo}`;
+                        const isBusy = downloadingTopicId === key;
+                        const isBlocked = Boolean(downloadingTopicId);
+
+                        return (
+                          <button
+                            key={tipo}
+                            type="button"
+                            onClick={(e) => handleDownloadMaterial(e, topic.id, topic.title, tipo)}
+                            disabled={isBlocked}
+                            className="w-full flex items-center justify-center gap-1.5 py-2 px-2 rounded-xl bg-slate-950/90 hover:bg-cyan-950/40 border border-slate-800 hover:border-cyan-500/50 text-xs font-semibold text-slate-300 hover:text-cyan-300 transition-all shadow-sm group/btn cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={
+                              tipo === 'md'
+                                ? `Descargar notas Markdown de ${topic.title}`
+                                : `Descargar presentación de ${topic.title} (${labels[tipo]})`
+                            }
+                          >
+                            {isBusy ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                                <span>...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Download className="w-3.5 h-3.5 text-cyan-400 group-hover/btn:scale-110 transition-transform" />
+                                <span>{labels[tipo]}</span>
+                              </>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {/* Footer de la Tarjeta */}
                 <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">

@@ -21,6 +21,21 @@ export const App: React.FC = () => {
     fontSize
   } = usePresentationStore();
 
+  // HU-RES-02: los temas y el tamaño de fuente se aplican en <html> para que
+  // afecten a toda la interfaz (incluidos body y los rem de Tailwind).
+  useEffect(() => {
+    const root = document.documentElement;
+    const themes = [
+      'theme-cinema-dark',
+      'theme-projector-high-contrast',
+      'theme-clean-light'
+    ];
+    const sizes = ['font-size-normal', 'font-size-large', 'font-size-xlarge'];
+
+    root.classList.remove(...themes, ...sizes);
+    root.classList.add(`theme-${contrastMode}`, `font-size-${fontSize}`);
+  }, [contrastMode, fontSize]);
+
   // Atajos de teclado globales sin colisión con inputs de texto (HU-PRS-01)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -80,7 +95,7 @@ export const App: React.FC = () => {
   ]);
 
   return (
-    <div className={`min-h-screen theme-${contrastMode} font-size-${fontSize} transition-colors duration-300`}>
+    <div className="min-h-screen transition-colors duration-300">
       {currentView === 'home' && <P01_Home />}
       {currentView === 'presentation' && <P02_Presentacion />}
       {currentView === 'notebooklm' && <P03_NotebookLM />}

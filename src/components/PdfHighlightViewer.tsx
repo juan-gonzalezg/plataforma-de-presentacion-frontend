@@ -229,6 +229,14 @@ const PdfPage: React.FC<PdfPageProps> = ({
   const [originalSize, setOriginalSize] = useState<{ width: number; height: number } | null>(null);
   const scale = originalSize ? pageWidth / originalSize.width : 1;
 
+  // HU-BOT-01: avisa al escenario cuando el recuadro ya existe en el DOM
+  // (el PDF carga de forma asíncrona y el robot necesita su posición real).
+  useEffect(() => {
+    if (bbox && originalSize) {
+      window.dispatchEvent(new CustomEvent('smart-highlight-positioned'));
+    }
+  }, [bbox, originalSize, pageNumber]);
+
   return (
     <div
       ref={registerTargetRef}
@@ -250,6 +258,7 @@ const PdfPage: React.FC<PdfPageProps> = ({
 
       {bbox && originalSize && (
         <div
+          data-pdf-highlight="true"
           className="smart-highlight-active pointer-events-none absolute rounded-md border-2 border-amber-400 bg-amber-400/20 shadow-lg shadow-amber-500/30 transition-all duration-500"
           style={{
             left: bbox.x0 * scale,

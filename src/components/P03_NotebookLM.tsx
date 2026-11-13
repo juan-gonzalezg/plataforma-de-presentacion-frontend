@@ -11,7 +11,10 @@ import {
   Cpu,
   AlertTriangle,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Download,
+  Trash2,
+  Save
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
@@ -19,6 +22,13 @@ import { AccessibilityControls } from './AccessibilityControls';
 import { SourceDocument } from './SourceDocument';
 import { PdfHighlightViewer } from './PdfHighlightViewer';
 import { parseNotesBlocks, extractNotesTitle } from '../lib/notes';
+import {
+  buildChatMarkdown,
+  buildNotesMarkdown,
+  downloadText,
+  fileStamp,
+  slugify
+} from '../lib/sessionExport';
 import { ChatSource, HighlightBbox } from '../types';
 
 type RightTab = 'documento' | 'fragmentos' | 'web';
@@ -49,12 +59,16 @@ export const P03_NotebookLM: React.FC = () => {
     activeHighlightPage,
     latestChatSources,
     stopChatStream,
+    clearChat,
     loadLlmStatus,
     llmStatus
   } = usePresentationStore();
 
   const [inputMessage, setInputMessage] = useState('');
   const [rightTab, setRightTab] = useState<RightTab>('documento');
+  // Permite alternar entre las notas Markdown y el PDF original del módulo.
+  // Así también se puede validar el visor PDF (HU-NOT-02) en cualquier tema.
+  const [documentView, setDocumentView] = useState<'notes' | 'pdf'>('notes');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Estado del proveedor LLM (para indicar si hay generación real o modo extractivo)
@@ -75,12 +89,17 @@ export const P03_NotebookLM: React.FC = () => {
   // Al cambiar de módulo volvemos a la pestaña del documento
   useEffect(() => {
     setRightTab('documento');
+    setDocumentView('notes');
   }, [selectedTopic?.id]);
 
   // Si una cita activa un bloque o una página, mostramos el documento
   useEffect(() => {
     if (activeHighlightBlockId || activeHighlightPage) {
       setRightTab('documento');
+    }
+    // Una cita con página/bbox (HU-NOT-02) solo se puede resaltar en el PDF.
+    if (activeHighlightPage) {
+      setDocumentView('pdf');
     }
   }, [activeHighlightBlockId, activeHighlightPage]);
 
@@ -99,6 +118,36 @@ export const P03_NotebookLM: React.FC = () => {
 
   const currentSlide = selectedTopic.slides[currentSlideIndex];
   const hasMarkdownNotes = notesBlocks.length > 0;
+  const hasPdf = Boolean(selectedTopic.files?.pdf);
+
+  // Exportación local (sin backend) para que siga funcionando sin conexión.
+  const exportBaseName = `${slugify(selectedTopic.title)}-${fileStamp()}`;
+
+  const handleExportChat = () => {
+    downloadText(
+      `chat-${exportBaseName}.md`,
+      buildChatMarkdown(selectedTopic, chatMessages)
+    );
+  };
+
+  const handleExportNotes = () => {
+    downloadText(
+      `notas-${exportBaseName}.md`,
+      buildNotesMarkdown(selectedTopic)
+    );
+  };
+
+  const handleClearChat = () => {
+    if (chatMessages.length <= 1) return;
+    if (
+      !window.confirm(
+        '¿Vaciar la conversación de este módulo? El resto de la sesión (bitácora, notas y tema elegido) se conserva.'
+      )
+    ) {
+      return;
+    }
+    clearChat();
+  };
 
   const localChatSources = latestChatSources.filter((s) => s.source !== 'web');
   const webChatSources = latestChatSources.filter((s) => s.source === 'web');
@@ -216,6 +265,12 @@ export const P03_NotebookLM: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
+          <span
+            className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-300"
+            title="La conversación, la bitácora, el módulo y tus preferencias se guardan en este navegador."
+          >
+            <Save className="h-3 w-3" /> Autoguardado
+          </span>
           <AccessibilityControls />
         </div>
       </header>
@@ -225,12 +280,31 @@ export const P03_NotebookLM: React.FC = () => {
         {/* COLUMNA IZQUIERDA: Hilo de Chat con la IA (7 columnas) */}
         <section className="lg:col-span-7 flex flex-col h-full border-r border-slate-800/80 bg-slate-900/50">
           {/* Header del Chat */}
-          <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+          <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
               <h2 className="text-sm font-bold text-slate-200">Conversación Contextual con IA</h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportChat}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+                title="Descargar esta conversación en Markdown"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Exportar chat</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleClearChat}
+                disabled={chatMessages.length <= 1}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-amber-500/50 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40"
+                title="Vaciar la conversación de este módulo"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">Limpiar</span>
+              </button>
               <span
                 className={`text-[10px] font-mono px-2 py-1 rounded-full border flex items-center gap-1 ${
                   llmStatus?.configured
@@ -512,15 +586,36 @@ export const P03_NotebookLM: React.FC = () => {
           {/* Contenido de la pestaña activa */}
           <div className="flex-1 min-h-0 px-4 pt-2.5 pb-1 overflow-hidden">
             {rightTab === 'documento' &&
-              (hasMarkdownNotes ? (
+              (hasMarkdownNotes && documentView === 'notes' ? (
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
                     <span className="truncate text-[11px] font-semibold text-slate-300">
                       {notesTitle ?? 'Texto base del módulo'}
                     </span>
-                    <span className="shrink-0 font-mono text-[10px] text-slate-500">
-                      {notesBlocks.length} bloques
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="font-mono text-[10px] text-slate-500">
+                        {notesBlocks.length} bloques
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleExportNotes}
+                        className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 font-mono text-[10px] text-slate-300 transition-colors hover:border-emerald-500/50 hover:text-emerald-300"
+                        title="Descargar los apuntes del módulo en Markdown"
+                      >
+                        <Download className="h-3 w-3" />
+                        Exportar
+                      </button>
+                      {hasPdf && (
+                        <button
+                          type="button"
+                          onClick={() => setDocumentView('pdf')}
+                          className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 font-mono text-[10px] text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+                          title="Ver el PDF original con el mismo resaltado"
+                        >
+                          PDF original
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex-1 overflow-y-auto pr-1">
                     <SourceDocument
@@ -533,8 +628,35 @@ export const P03_NotebookLM: React.FC = () => {
                     />
                   </div>
                 </div>
+              ) : hasPdf ? (
+                <div className="flex h-full min-h-0 flex-col">
+                  {hasMarkdownNotes && (
+                    <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
+                      <span className="truncate text-[11px] font-semibold text-slate-300">
+                        PDF original del módulo
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDocumentView('notes')}
+                        className="inline-flex items-center gap-1 rounded border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] text-cyan-300 transition-colors hover:bg-cyan-500/20"
+                        title="Volver a las notas Markdown"
+                      >
+                        Notas
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex-1 min-h-0">
+                    <PdfHighlightViewer />
+                  </div>
+                </div>
               ) : (
-                <PdfHighlightViewer />
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-slate-500">
+                  <FileText className="h-7 w-7 text-slate-600" />
+                  <p className="text-xs leading-relaxed">
+                    Este módulo no tiene notas Markdown ni PDF disponibles todavía.
+                    Sube el material a Supabase Storage o usa el botón Sincronizar.
+                  </p>
+                </div>
               ))}
 
             {rightTab === 'fragmentos' && (

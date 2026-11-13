@@ -34,8 +34,80 @@ export const P02_Presentacion: React.FC = () => {
     robotMood,
     robotSpeechBubble,
     searchErrorToast,
-    clearSearchError
+    clearSearchError,
+    activeHighlightBlockId,
+    activeHighlightPage
   } = usePresentationStore();
+
+  // HU-BOT-01: el robot deja de estar anclado a una altura fija y se
+  // reposiciona al margen del bloque Markdown citado o del bbox del PDF.
+  const [robotTop, setRobotTop] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (!isDrawerOpen) {
+      setRobotTop(null);
+      return;
+    }
+
+    const updateRobotPosition = () => {
+      const selector = activeHighlightBlockId
+        ? `[data-notes-block="${activeHighlightBlockId}"]`
+        : activeHighlightPage
+          ? '[data-pdf-highlight="true"]'
+          : null;
+
+      if (!selector) {
+        setRobotTop(null);
+        return;
+      }
+
+      const target = document.querySelector<HTMLElement>(selector);
+      if (!target) {
+        setRobotTop(null);
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
+      // El avatar mide 96px (w-24) y la burbuja de diálogo crece hacia
+      // arriba, así que centramos el robot en el bloque con margen superior.
+      const desired = rect.top + rect.height / 2 - 48;
+      const minTop = 88;
+      const maxTop = Math.max(minTop, window.innerHeight - 200);
+      setRobotTop(Math.min(Math.max(desired, minTop), maxTop));
+    };
+
+    updateRobotPosition();
+
+    // El scroll de cualquier contenedor (drawer, PDF, ventana) no burbujea,
+    // pero sí se puede observar en fase de captura desde window. Se agrupa
+    // en un frame para no re-renderizar en cada evento.
+    let frame = 0;
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateRobotPosition();
+      });
+    };
+
+    window.addEventListener('scroll', scheduleUpdate, true);
+    window.addEventListener('resize', scheduleUpdate);
+    window.addEventListener('smart-highlight-positioned', scheduleUpdate);
+
+    // Reintento tras la transición de apertura del drawer y tras el
+    // auto-scroll interno que hace la cita activa.
+    const timers = [350, 750, 1200].map((delay) =>
+      window.setTimeout(updateRobotPosition, delay)
+    );
+
+    return () => {
+      window.removeEventListener('scroll', scheduleUpdate, true);
+      window.removeEventListener('resize', scheduleUpdate);
+      window.removeEventListener('smart-highlight-positioned', scheduleUpdate);
+      if (frame) window.cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [isDrawerOpen, activeHighlightBlockId, activeHighlightPage, currentSlideIndex]);
 
   if (!selectedTopic) {
     return (
@@ -199,9 +271,12 @@ export const P02_Presentacion: React.FC = () => {
         </div>
 
         {/* Robot 2D reactivo en el escenario (Épica 3: BOT) */}
-        <div className={`fixed bottom-24 transition-all duration-500 z-30 ${
-          isDrawerOpen ? 'right-[480px]' : 'right-10'
-        }`}>
+        <div
+          className={`fixed z-30 transition-all duration-500 ${
+            isDrawerOpen ? 'right-[480px]' : 'right-10'
+          } ${robotTop === null ? 'bottom-24' : ''}`}
+          style={robotTop !== null ? { top: `${robotTop}px` } : undefined}
+        >
           <RobotAvatar
             mood={robotMood}
             speechBubble={robotSpeechBubble}

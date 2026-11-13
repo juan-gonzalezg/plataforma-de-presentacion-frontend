@@ -1,5 +1,13 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { apiUrl } from '../lib/apiBase';
+import {
+  SESSION_STORAGE_KEY,
+  SESSION_STORAGE_VERSION,
+  createSafeStorage,
+  mergeSession,
+  persistSessionSnapshot
+} from '../lib/sessionPersistence';
 import { 
   AppView, 
   ContrastMode, 
@@ -14,6 +22,7 @@ import {
   HighlightBbox,
   ChatSource,
   LlmStatus,
+  SystemHealth,
   WebResult
 } from '../types';
 
@@ -47,9 +56,13 @@ interface PresentationStore {
   // Sticky Notes y Chat
   stickyNotes: StickyNote[];
   chatMessages: ChatMessage[];
+  /** Historial de conversación por módulo (persistido entre recargas). */
+  moduleChats: Record<string, ChatMessage[]>;
   sessionHistory: QueryResponse[];
   latestChatSources: ChatSource[];
   llmStatus: LlmStatus | null;
+  systemHealth: SystemHealth | null;
+  isCheckingHealth: boolean;
 
   // Resiliencia y Accesibilidad
   isSearching: boolean;
@@ -79,11 +92,15 @@ interface PresentationStore {
   removeStickyNote: (id: string) => void;
   sendChatMessage: (text: string) => Promise<void>;
   stopChatStream: () => void;
+  clearChat: () => void;
+  /** Borra la sesión guardada y vuelve al Home. */
+  resetStoredSession: () => void;
   loadLlmStatus: () => Promise<void>;
+  loadSystemHealth: () => Promise<void>;
   setContrastMode: (mode: ContrastMode) => void;
   setFontSize: (size: FontSizeSetting) => void;
   clearSearchError: () => void;
-  downloadTopicMaterial: (topicId: string, tipo?: 'pdf' | 'pptx') => Promise<DownloadResponse | null>;
+  downloadTopicMaterial: (topicId: string, tipo?: 'pdf' | 'pptx' | 'md') => Promise<DownloadResponse | null>;
   fetchPdfViewUrl: (topicId: string) => Promise<string | null>;
 }
 
@@ -107,7 +124,43 @@ type ChatStreamEvent =
       web_error?: string;
     };
 
-export const usePresentationStore = create<PresentationStore>((set, get) => ({
+function buildWelcomeMessage(topic: TopicDetail): ChatMessage {
+  return {
+    id: 'init-msg',
+    sender: 'assistant',
+    text: `Bienvenido al módulo "${topic.title}". Puedes hacerme cualquier pregunta técnica: responderé citando las secciones oficiales del texto base.`,
+    timestamp: new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  };
+}
+
+/**
+ * Mantiene sincronizados el chat visible y el historial por módulo.
+ * Si el usuario cambió de módulo durante un stream, no contamina el nuevo.
+ */
+function withModuleChat(
+  state: PresentationStore,
+  topicId: string | undefined,
+  chatMessages: ChatMessage[]
+): Pick<PresentationStore, 'chatMessages' | 'moduleChats'> {
+  if (!topicId || state.selectedTopic?.id !== topicId) {
+    return {
+      chatMessages: state.chatMessages,
+      moduleChats: state.moduleChats
+    };
+  }
+
+  return {
+    chatMessages,
+    moduleChats: { ...state.moduleChats, [topicId]: chatMessages }
+  };
+}
+
+export const usePresentationStore = create<PresentationStore>()(
+  persist(
+    (set, get) => ({
   currentView: 'home',
   setCurrentView: (view) => set({ currentView: view }),
 
@@ -130,9 +183,12 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
 
   stickyNotes: [],
   chatMessages: [],
+  moduleChats: {},
   sessionHistory: [],
   latestChatSources: [],
   llmStatus: null,
+  systemHealth: null,
+  isCheckingHealth: false,
 
   isSearching: false,
   searchErrorToast: null,
@@ -175,8 +231,15 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       const res = await fetch(apiUrl(`/api/topics/${topicId}`));
       if (res.ok) {
         const data = await res.json();
+        const topic = data.topic as TopicDetail;
+        const storedChat = get().moduleChats[topic.id];
+        const initialChat =
+          storedChat && storedChat.length > 0
+            ? storedChat
+            : [buildWelcomeMessage(topic)];
+
         set({ 
-          selectedTopic: data.topic,
+          selectedTopic: topic,
           currentSlideIndex: 0,
           currentView: 'presentation',
           isDrawerOpen: false,
@@ -187,14 +250,12 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
           activeHighlightBlockId: null,
           activeHighlightPage: null,
           activeHighlightBbox: null,
-          chatMessages: [
-            {
-              id: 'init-msg',
-              sender: 'assistant',
-              text: `Bienvenido al módulo "${data.topic.title}". Puedes hacerme cualquier pregunta técnica: responderé citando las secciones oficiales del texto base.`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            }
-          ]
+          // HU-AIQ-03: recupera la conversación previa de este módulo.
+          chatMessages: initialChat,
+          moduleChats: {
+            ...get().moduleChats,
+            [topic.id]: initialChat
+          }
         });
       }
     } catch (err) {
@@ -497,7 +558,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 25000); // cubre el WEB_ANSWER_TIMEOUT del backend (18 s) + margen
+    }, 4000); // HU-RES-01: la petición web también se cancela a los 4 s
 
     try {
       const res = await fetch(apiUrl('/api/web/ask'), {
@@ -564,6 +625,14 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       }));
       setRobotMood('sin_senal', 3000);
       setRobotSpeech(message, 4000);
+
+      // Aviso no invasivo (HU-RES-01) sin bloquear la presentación.
+      set({ searchErrorToast: message });
+      setTimeout(() => {
+        if (get().searchErrorToast === message) {
+          set({ searchErrorToast: null });
+        }
+      }, 4000);
     }
   },
 
@@ -592,6 +661,7 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     if (!selectedTopic || !trimmed || get().isSearching) return;
 
     const currentSlide = selectedTopic.slides[currentSlideIndex];
+    const topicId = selectedTopic.id;
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const assistantId = `ast-${Date.now()}`;
 
@@ -620,7 +690,11 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       }));
 
     set((state) => ({
-      chatMessages: [...state.chatMessages, userMsg, assistantMsg],
+      ...withModuleChat(state, topicId, [
+        ...state.chatMessages,
+        userMsg,
+        assistantMsg
+      ]),
       isSearching: true,
       searchErrorToast: null,
       latestChatSources: []
@@ -631,12 +705,27 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     const controller = new AbortController();
     chatAbortController = controller;
 
+    // HU-RES-01: si el LLM no emite el primer token en 4 s, se cancela la
+    // petición y se devuelve el control al expositor. Una vez empieza el
+    // streaming, la respuesta puede continuar sin límite.
+    let receivedFirstToken = false;
+    let timedOut = false;
+    let firstTokenTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      if (receivedFirstToken) return;
+      timedOut = true;
+      controller.abort();
+    }, 4000);
+
     const updateAssistant = (patch: Partial<ChatMessage>) => {
-      set((state) => ({
-        chatMessages: state.chatMessages.map((m) =>
-          m.id === assistantId ? { ...m, ...patch } : m
+      set((state) =>
+        withModuleChat(
+          state,
+          topicId,
+          state.chatMessages.map((m) =>
+            m.id === assistantId ? { ...m, ...patch } : m
+          )
         )
-      }));
+      );
     };
 
     try {
@@ -699,11 +788,22 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
             } else if (event.type === 'delta') {
               const chunk = event.text ?? '';
               if (chunk) {
-                set((state) => ({
-                  chatMessages: state.chatMessages.map((m) =>
-                    m.id === assistantId ? { ...m, text: m.text + chunk } : m
+                if (!receivedFirstToken) {
+                  receivedFirstToken = true;
+                  if (firstTokenTimer) {
+                    clearTimeout(firstTokenTimer);
+                    firstTokenTimer = null;
+                  }
+                }
+                set((state) =>
+                  withModuleChat(
+                    state,
+                    topicId,
+                    state.chatMessages.map((m) =>
+                      m.id === assistantId ? { ...m, text: m.text + chunk } : m
+                    )
                   )
-                }));
+                );
               }
 
             } else if (event.type === 'notice') {
@@ -757,26 +857,30 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
               };
 
               set((state) => ({
-                chatMessages: state.chatMessages.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        isStreaming: false,
-                        citations,
-                        sources,
-                        webResults,
-                        external_url: webResults[0]?.url,
-                        notice:
-                          webResults.length &&
-                          (!m.notice ||
-                            m.notice.startsWith('Buscando información externa') ||
-                            m.notice.startsWith('No se encontraron resultados web'))
-                            ? `Respuesta complementada con ${webResults.length} fuente(s) web externa(s)${event.web_provider ? ` (${event.web_provider})` : ''}.`
-                            : m.notice,
-                        mode: event.mode ?? m.mode,
-                        confidence: event.confidence ?? m.confidence
-                      }
-                    : m
+                ...withModuleChat(
+                  state,
+                  topicId,
+                  state.chatMessages.map((m) =>
+                    m.id === assistantId
+                      ? {
+                          ...m,
+                          isStreaming: false,
+                          citations,
+                          sources,
+                          webResults,
+                          external_url: webResults[0]?.url,
+                          notice:
+                            webResults.length &&
+                            (!m.notice ||
+                              m.notice.startsWith('Buscando información externa') ||
+                              m.notice.startsWith('No se encontraron resultados web'))
+                              ? `Respuesta complementada con ${webResults.length} fuente(s) web externa(s)${event.web_provider ? ` (${event.web_provider})` : ''}.`
+                              : m.notice,
+                          mode: event.mode ?? m.mode,
+                          confidence: event.confidence ?? m.confidence
+                        }
+                      : m
+                  )
                 ),
                 latestChatSources: sources,
                 sessionHistory: [historyEntry, ...state.sessionHistory]
@@ -827,17 +931,51 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     } catch (err: any) {
       const aborted = err?.name === 'AbortError';
 
-      if (aborted) {
+      if (aborted && timedOut) {
+        // HU-RES-01: el LLM no respondió en 4 s.
+        const timeoutMsg = 'Red lenta o sin conexión. Continúa con la presentación.';
         set((state) => ({
-          chatMessages: state.chatMessages.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  isStreaming: false,
-                  text: m.text || 'Generación detenida por el usuario.',
-                  notice: 'Generación detenida por el usuario.'
-                }
-              : m
+          ...withModuleChat(
+            state,
+            topicId,
+            state.chatMessages.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    isStreaming: false,
+                    error: true,
+                    text: m.text || timeoutMsg,
+                    notice: timeoutMsg
+                  }
+                : m
+            )
+          ),
+          isSearching: false,
+          searchErrorToast: timeoutMsg
+        }));
+        setRobotMood('sin_senal', 3500);
+        setRobotSpeech(timeoutMsg, 4000);
+
+        setTimeout(() => {
+          if (get().searchErrorToast === timeoutMsg) {
+            set({ searchErrorToast: null });
+          }
+        }, 4000);
+      } else if (aborted) {
+        set((state) => ({
+          ...withModuleChat(
+            state,
+            topicId,
+            state.chatMessages.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    isStreaming: false,
+                    text: m.text || 'Generación detenida por el usuario.',
+                    notice: 'Generación detenida por el usuario.'
+                  }
+                : m
+            )
           ),
           isSearching: false
         }));
@@ -845,10 +983,14 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       } else {
         const errorMsg = 'No se pudo obtener respuesta del asistente. Revisa la conexión con el backend.';
         set((state) => ({
-          chatMessages: state.chatMessages.map((m) =>
-            m.id === assistantId
-              ? { ...m, isStreaming: false, error: true, text: m.text || errorMsg }
-              : m
+          ...withModuleChat(
+            state,
+            topicId,
+            state.chatMessages.map((m) =>
+              m.id === assistantId
+                ? { ...m, isStreaming: false, error: true, text: m.text || errorMsg }
+                : m
+            )
           ),
           isSearching: false,
           searchErrorToast: errorMsg
@@ -858,6 +1000,10 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       }
 
     } finally {
+      if (firstTokenTimer) {
+        clearTimeout(firstTokenTimer);
+        firstTokenTimer = null;
+      }
       if (chatAbortController === controller) chatAbortController = null;
       set({ isSearching: false });
       updateAssistant({ isStreaming: false });
@@ -867,6 +1013,52 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
   stopChatStream: () => {
     chatAbortController?.abort();
     chatAbortController = null;
+  },
+
+  clearChat: () => {
+    const { selectedTopic, moduleChats } = get();
+    if (!selectedTopic) return;
+
+    // Una conversación vacía conserva el mensaje de bienvenida del módulo.
+    const welcome = [buildWelcomeMessage(selectedTopic)];
+    set({
+      chatMessages: welcome,
+      moduleChats: { ...moduleChats, [selectedTopic.id]: welcome },
+      latestChatSources: []
+    });
+    get().setRobotSpeech('Conversación reiniciada para este módulo.', 2500);
+  },
+
+  resetStoredSession: () => {
+    chatAbortController?.abort();
+    chatAbortController = null;
+
+    try {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch {
+      /* el autoguardado ya es best-effort */
+    }
+
+    set({
+      currentView: 'home',
+      selectedTopic: null,
+      currentSlideIndex: 0,
+      isDrawerOpen: false,
+      isSpotlightOpen: false,
+      isSessionLogOpen: false,
+      activeHighlightBlockId: null,
+      activeHighlightPage: null,
+      activeHighlightBbox: null,
+      chatMessages: [],
+      moduleChats: {},
+      sessionHistory: [],
+      stickyNotes: [],
+      latestChatSources: [],
+      isSearching: false,
+      searchErrorToast: null,
+      robotMood: 'idle_atento',
+      robotSpeechBubble: 'Sesión borrada. Selecciona un módulo para comenzar.'
+    });
   },
 
   loadLlmStatus: async () => {
@@ -894,6 +1086,62 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     }
   },
 
+  loadSystemHealth: async () => {
+    set({ isCheckingHealth: true });
+    try {
+      const res = await fetch(apiUrl('/api/health'));
+      if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
+
+      const data = await res.json();
+      const vectorDbActive = Boolean(data.vector_db_active);
+      const llmConfigured = Boolean(data.llm_configured ?? data.llm?.configured);
+      const webConfigured = Boolean(data.web_search?.configured);
+      const storageConfigured = Boolean(data.storage?.configured);
+      const storageError = data.storage?.last_error
+        ? String(data.storage.last_error)
+        : undefined;
+
+      set({
+        systemHealth: {
+          status:
+            data.status === 'healthy' && vectorDbActive
+              ? 'healthy'
+              : 'degraded',
+          vectorDbActive,
+          llmConfigured,
+          webConfigured,
+          loadedTopics: Number(
+            data.indexed_topics_count ?? data.loaded_topics_count ?? 0
+          ),
+          webProvider: data.web_search?.provider,
+          storage: data.storage
+            ? {
+                configured: storageConfigured,
+                bucket: String(data.storage.bucket ?? 'presentaciones'),
+                public: Boolean(data.storage.public),
+                last_error: storageError ?? null,
+                discovered_topics: Number(data.storage.discovered_topics ?? 0)
+              }
+            : undefined,
+          checkedAt: data.timestamp
+        },
+        isCheckingHealth: false
+      });
+    } catch (err) {
+      console.error('Error consultando la salud del sistema:', err);
+      set({
+        systemHealth: {
+          status: 'offline',
+          vectorDbActive: false,
+          llmConfigured: false,
+          webConfigured: false,
+          loadedTopics: 0
+        },
+        isCheckingHealth: false
+      });
+    }
+  },
+
   setContrastMode: (mode: ContrastMode) => {
     set({ contrastMode: mode });
   },
@@ -906,30 +1154,35 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
     set({ searchErrorToast: null });
   },
 
-  downloadTopicMaterial: async (topicId: string, tipo: 'pdf' | 'pptx' = 'pdf'): Promise<DownloadResponse | null> => {
-    try {
-      const res = await fetch(apiUrl(`/api/topics/${topicId}/download?tipo=${tipo}`));
-      if (!res.ok) {
-        throw new Error(`Error en la descarga: ${res.statusText}`);
+  downloadTopicMaterial: async (topicId: string, tipo: 'pdf' | 'pptx' | 'md' = 'pdf'): Promise<DownloadResponse | null> => {
+    const res = await fetch(apiUrl(`/api/topics/${topicId}/download?tipo=${tipo}`));
+
+    if (!res.ok) {
+      let detail = `No se pudo descargar el material (${res.status}).`;
+      try {
+        const body = await res.json();
+        if (body?.detail) detail = String(body.detail);
+      } catch {
+        /* respuesta sin JSON: conservar el mensaje genérico */
       }
-      const data: DownloadResponse = await res.json();
-      if (data && data.download_url) {
-        // Disparar la descarga en el navegador mediante elemento <a>
-        const link = document.createElement('a');
-        link.href = data.download_url;
-        link.setAttribute('download', data.file_name || `${topicId}.${tipo}`);
-        link.setAttribute('target', '_blank');
-        link.setAttribute('rel', 'noopener noreferrer');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return data;
-      }
-      return null;
-    } catch (err) {
-      console.error('Error al descargar material del módulo:', err);
-      return null;
+      throw new Error(detail);
     }
+
+    const data: DownloadResponse = await res.json();
+    if (!data?.download_url) {
+      throw new Error('El servidor no devolvió una URL de descarga válida.');
+    }
+
+    // Disparar la descarga en el navegador mediante elemento <a>
+    const link = document.createElement('a');
+    link.href = data.download_url;
+    link.setAttribute('download', data.file_name || `${topicId}.${tipo}`);
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return data;
   },
 
   // Obtiene la URL (pública o firmada) del PDF solo para RENDERIZARLO en
@@ -945,4 +1198,21 @@ export const usePresentationStore = create<PresentationStore>((set, get) => ({
       return null;
     }
   }
-}));
+    }),
+    {
+      name: SESSION_STORAGE_KEY,
+      version: SESSION_STORAGE_VERSION,
+      // localStorage puede fallar en modo privado o con la cuota llena.
+      storage: createJSONStorage(() =>
+        createSafeStorage(
+          typeof window !== 'undefined' ? window.localStorage : null
+        )
+      ),
+      // Solo se guarda lo que permite reanudar la sesión, no estados
+      // transitorios (modales, robot, salud del backend, stream en curso).
+      partialize: (state) => persistSessionSnapshot(state),
+      merge: (persisted, current) => mergeSession(persisted, current),
+      migrate: (persistedState) => persistedState as PresentationStore
+    }
+  )
+);

@@ -1,9 +1,26 @@
 import React from 'react';
-import { X, History, Sparkles, Globe, Download, Clock } from 'lucide-react';
+import { X, History, Sparkles, Globe, Download, Clock, FileJson, Trash2, Save } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
+import {
+  buildSessionBackup,
+  buildSessionLogMarkdown,
+  downloadText,
+  fileStamp,
+  slugify
+} from '../lib/sessionExport';
 
 export const SessionLogDrawer: React.FC = () => {
-  const { isSessionLogOpen, toggleSessionLog, sessionHistory } = usePresentationStore();
+  const {
+    isSessionLogOpen,
+    toggleSessionLog,
+    sessionHistory,
+    selectedTopic,
+    chatMessages,
+    stickyNotes,
+    contrastMode,
+    fontSize,
+    resetStoredSession
+  } = usePresentationStore();
 
   if (!isSessionLogOpen) return null;
 
@@ -14,31 +31,39 @@ export const SessionLogDrawer: React.FC = () => {
         ? 'Sin conexión'
         : 'Búsqueda Web Externa';
 
+  const exportBaseName = `${slugify(selectedTopic?.title ?? 'sesion')}-${fileStamp()}`;
+
   const exportMarkdown = () => {
-    const lines = [
-      `# Bitácora de Dudas y Respuestas de la Sesión`,
-      `Fecha: ${new Date().toLocaleDateString()} - Total de consultas: ${sessionHistory.length}\n`,
-      ...sessionHistory.map((item, index) => {
-        const webLines = (item.web_results ?? [])
-          .map((r) => `  - [${r.id}] ${r.title}: ${r.url}`)
-          .join('\n');
-        return `### ${index + 1}. Pregunta: "${item.query}"\n` +
-          `- **Fuente:** ${sourceLabel(item.source)}\n` +
-          (item.provider ? `- **Proveedor web:** ${item.provider}\n` : '') +
-          `- **Confianza:** ${Math.round(item.confidence * 100)}% | **Latencia:** ${item.latency_ms}ms\n` +
-          `- **Respuesta:** ${item.answer_summary}\n` +
-          (item.external_url ? `- **URL Externa:** ${item.external_url}\n` : '') +
-          (webLines ? `- **Fuentes web:**\n${webLines}\n` : '') +
-          `\n---`;
-      })
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bitacora-sesion-${Date.now()}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadText(
+      `bitacora-${exportBaseName}.md`,
+      buildSessionLogMarkdown(sessionHistory, selectedTopic?.title)
+    );
+  };
+
+  const exportBackup = () => {
+    downloadText(
+      `sesion-${exportBaseName}.json`,
+      buildSessionBackup({
+        topic: selectedTopic,
+        chatMessages,
+        sessionHistory,
+        stickyNotes,
+        contrastMode,
+        fontSize
+      }),
+      'application/json;charset=utf-8'
+    );
+  };
+
+  const handleReset = () => {
+    if (
+      !window.confirm(
+        '¿Borrar la sesión guardada en este navegador? Se eliminarán el chat, la bitácora, las notas adhesivas y el módulo activo. Descarga un respaldo antes si lo necesitas.'
+      )
+    ) {
+      return;
+    }
+    resetStoredSession();
   };
 
   return (
@@ -70,18 +95,26 @@ export const SessionLogDrawer: React.FC = () => {
           </button>
         </div>
 
-        {/* Acciones de exportación */}
-        {sessionHistory.length > 0 && (
-          <div className="py-3 border-b border-slate-800 flex justify-end">
-            <button
-              onClick={exportMarkdown}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-500/20 text-cyan-300 text-xs font-medium border border-slate-700 hover:border-cyan-500/50 transition-all flex items-center gap-1.5"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Exportar Resumen en Markdown</span>
-            </button>
-          </div>
-        )}
+        {/* Acciones de exportación y respaldo */}
+        <div className="py-3 border-b border-slate-800 flex flex-wrap items-center justify-end gap-2">
+          <button
+            onClick={exportMarkdown}
+            disabled={sessionHistory.length === 0}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-cyan-500/20 text-cyan-300 text-xs font-medium border border-slate-700 hover:border-cyan-500/50 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Descargar la bitácora de dudas en Markdown"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Bitácora .md</span>
+          </button>
+          <button
+            onClick={exportBackup}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-slate-700 hover:border-emerald-500/50 transition-all flex items-center gap-1.5"
+            title="Descargar chat, bitácora, notas adhesivas y módulo en JSON"
+          >
+            <FileJson className="w-3.5 h-3.5" />
+            <span>Respaldo .json</span>
+          </button>
+        </div>
 
         {/* Lista de Registros */}
         <div className="flex-1 overflow-y-auto py-4 space-y-3.5">
@@ -134,6 +167,23 @@ export const SessionLogDrawer: React.FC = () => {
               </div>
             ))
           )}
+        </div>
+
+        {/* Pie: autoguardado y borrado de la sesión local */}
+        <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-500">
+          <span className="inline-flex items-center gap-1.5" title="La sesión se guarda en este navegador; no se envía a ningún servidor.">
+            <Save className="h-3.5 w-3.5 text-emerald-400" />
+            Autoguardado en este navegador
+          </span>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2 py-1 text-slate-400 transition-colors hover:border-red-500/50 hover:text-red-300"
+            title="Borrar chat, bitácora, notas adhesivas y módulo guardados"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Borrar sesión
+          </button>
         </div>
       </div>
     </div>

@@ -67,15 +67,65 @@ function renderInline(text: string): string {
 }
 
 /**
+ * Bloque de código cercado (```). El contenido ya viene escapado, así que
+ * aquí no se aplica renderInline: los asteriscos y backticks internos deben
+ * mostrarse literalmente.
+ */
+function renderCodeBlock(lines: string[], language: string): string {
+  const label = language
+    ? `<span class="uppercase tracking-wider text-slate-500">${language}</span>`
+    : '<span class="text-slate-500">Código</span>';
+
+  return (
+    `<div class="my-2 overflow-hidden rounded-xl border border-slate-800 bg-slate-950/90 shadow-inner">` +
+    `<div class="flex items-center justify-between border-b border-slate-800 px-3 py-1.5 font-mono text-[10px] text-cyan-400">` +
+    `<span class="flex items-center gap-1.5">&lt;/&gt; Fragmento</span>${label}</div>` +
+    `<pre class="overflow-x-auto p-3 font-mono text-[0.8rem] leading-relaxed text-cyan-200"><code>${lines.join(
+      '\n'
+    )}</code></pre>` +
+    `</div>`
+  );
+}
+
+/**
  * Convierte el contenido de un bloque a HTML seguro y legible: encabezados,
- * negritas, código en línea y listas simples.
+ * negritas, código en línea, listas simples y bloques de código cercados.
  */
 export function renderNotesMarkdown(raw: string): string {
   const lines = escapeHtml(raw || '').split(/\r?\n/);
   const output: string[] = [];
 
+  // HU-NOT-01: los bloques ``` se acumulan hasta la cerca de cierre. Si el
+  // bloque no se cierra, se renderiza igual al final para no perder texto.
+  let codeLines: string[] | null = null;
+  let codeLanguage = '';
+
+  const flushCode = () => {
+    if (codeLines === null) return;
+    output.push(renderCodeBlock(codeLines, codeLanguage));
+    codeLines = null;
+    codeLanguage = '';
+  };
+
   for (const line of lines) {
     const trimmed = line.trim();
+    const fence = /^```(.*)$/.exec(trimmed);
+
+    if (fence) {
+      if (codeLines === null) {
+        codeLines = [];
+        codeLanguage = fence[1].trim().split(/\s+/)[0] || '';
+      } else {
+        flushCode();
+      }
+      continue;
+    }
+
+    if (codeLines !== null) {
+      codeLines.push(line);
+      continue;
+    }
+
     if (!trimmed) continue;
 
     if (trimmed.startsWith('#### ')) {
@@ -115,6 +165,8 @@ export function renderNotesMarkdown(raw: string): string {
       `<p class="text-sm leading-relaxed text-slate-300">${renderInline(trimmed)}</p>`
     );
   }
+
+  flushCode();
 
   return output.join('');
 }
