@@ -8,6 +8,8 @@ interface RobotAvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'hero';
   className?: string;
   onClick?: () => void;
+  /** El usuario está redactando: el robot se asoma con curiosidad. */
+  isTyping?: boolean;
 }
 
 /**
@@ -23,25 +25,56 @@ const MOOD_LABEL: Record<RobotMood, string> = {
   celebrar: 'Celebrando'
 };
 
-const INK = '#0b1220';
+/** Contorno oscuro de la ficha del personaje. */
+const INK = '#1E293B';
 
-const BODY_PATH =
-  'M100 78 C82 80 70 88 62 102 C52 118 47 136 49 152 C51 170 72 182 100 182 C128 182 149 170 151 152 C153 136 148 118 138 102 C130 88 118 80 100 78 Z';
+/** Azul cian de los ojos LED. */
+const EYE = '#38BDF8';
 
-const HEAD_CY = 58;
+/** Rojo de alerta cuando se pierde la conexión. */
+const ALERT = '#FB7185';
 
-const LEFT_ARM_IDLE = 'M74 100 C58 116 52 134 54 150';
-const RIGHT_ARM_IDLE = 'M126 100 C142 116 148 134 146 150';
-const RIGHT_ARM_RAISED = 'M126 100 C148 92 158 70 150 44';
-const RIGHT_ARM_POINT = 'M126 100 C148 96 170 90 186 84';
-const RIGHT_ARM_PUSH = 'M126 100 C148 98 168 96 182 92';
+type ArmPose = { x: number; y: number; angle: number };
+
+/**
+ * Pose de los brazos (cápsulas flotantes estilo EVE). Cada brazo se dibuja
+ * desde el hombro con una rotación: 0° cuelga recto, valores negativos abren
+ * hacia fuera y los positivos apuntan hacia el contenido.
+ */
+const ARM_POSES: Record<RobotMood, { left: ArmPose; right: ArmPose }> = {
+  idle_atento: {
+    left: { x: 58, y: 120, angle: -8 },
+    right: { x: 142, y: 120, angle: 8 }
+  },
+  apuntar_puntero: {
+    left: { x: 58, y: 118, angle: 105 },
+    right: { x: 142, y: 120, angle: 8 }
+  },
+  empujar_pantalla: {
+    left: { x: 58, y: 118, angle: 40 },
+    right: { x: 142, y: 118, angle: -40 }
+  },
+  buscar_antena: {
+    left: { x: 58, y: 120, angle: -6 },
+    right: { x: 142, y: 116, angle: -130 }
+  },
+  sin_senal: {
+    left: { x: 58, y: 120, angle: 22 },
+    right: { x: 142, y: 120, angle: -22 }
+  },
+  celebrar: {
+    left: { x: 58, y: 118, angle: 118 },
+    right: { x: 142, y: 118, angle: -118 }
+  }
+};
 
 export const RobotAvatar: React.FC<RobotAvatarProps> = ({
   mood,
   speechBubble,
   size = 'md',
   className = '',
-  onClick
+  onClick,
+  isTyping = false
 }) => {
   // Dimensiones según el tamaño solicitado
   const sizeMap = {
@@ -53,18 +86,26 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
 
   // IDs únicos: puede haber varios avatares montados a la vez.
   const uid = React.useId().replace(/[^a-zA-Z0-9_-]/g, '');
-  const bodyGradientId = `logos-body-${uid}`;
-  const headGradientId = `logos-head-${uid}`;
-  const limbGradientId = `logos-limb-${uid}`;
-  const bodyClipId = `logos-clip-${uid}`;
-  const headClipId = `logos-head-clip-${uid}`;
+  const haloGradientId = `logos-halo-${uid}`;
+  const shellGradientId = `logos-shell-${uid}`;
+  const vestGradientId = `logos-vest-${uid}`;
+  const visorGradientId = `logos-visor-${uid}`;
+  const visorAlertGradientId = `logos-visor-alert-${uid}`;
+  const visorClipId = `logos-visor-clip-${uid}`;
+  const glowFilterId = `logos-glow-${uid}`;
 
-  const bodyAnimation =
-    mood === 'empujar_pantalla'
-      ? 'translate-x-2 rotate-3'
-      : mood === 'celebrar'
-        ? 'animate-bounce'
-        : 'animate-float-slow';
+  const isAlert = mood === 'sin_senal';
+  const led = isAlert ? ALERT : EYE;
+  const pose = ARM_POSES[mood];
+
+  // Comportamiento del cuerpo completo (ficha del personaje).
+  const rootAnimation = isTyping
+    ? 'robot-peek'
+    : mood === 'celebrar'
+      ? 'robot-happy'
+      : mood === 'empujar_pantalla'
+        ? 'robot-peek'
+        : 'robot-float';
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!onClick) return;
@@ -74,25 +115,64 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
     }
   };
 
-  /** Cápsula con contorno negro grueso y relleno blanco. */
-  const renderArm = (d: string) => (
-    <g key={d}>
-      <path
-        d={d}
-        fill="none"
+  /** Cápsula flotante con un pequeño LED en la mano. */
+  const renderArm = (arm: ArmPose) => (
+    <g transform={`translate(${arm.x} ${arm.y}) rotate(${arm.angle})`}>
+      <rect
+        x={-7}
+        y={0}
+        width={14}
+        height={34}
+        rx={7}
+        fill={`url(#${shellGradientId})`}
         stroke={INK}
-        strokeWidth={28}
-        strokeLinecap="round"
+        strokeWidth={3.5}
       />
-      <path
-        d={d}
-        fill="none"
-        stroke={`url(#${limbGradientId})`}
-        strokeWidth={20}
-        strokeLinecap="round"
-      />
+      <circle cx={0} cy={27} r={2} fill={led} opacity={0.85} />
     </g>
   );
+
+  /** Ojos LED con expresividad según el estado. */
+  const renderEyes = () => {
+    if (isAlert) {
+      return (
+        <g filter={`url(#${glowFilterId})`}>
+          <rect x={70} y={50} width={22} height={26} rx={9} fill={ALERT} />
+          <rect x={108} y={50} width={22} height={26} rx={9} fill={ALERT} />
+        </g>
+      );
+    }
+
+    const eyeClass =
+      mood === 'buscar_antena'
+        ? 'robot-blink'
+        : mood === 'celebrar'
+          ? 'animate-pulse'
+          : undefined;
+
+    return (
+      <g className={eyeClass} filter={`url(#${glowFilterId})`}>
+        <rect x={70} y={50} width={22} height={26} rx={9} fill={EYE} />
+        {mood === 'apuntar_puntero' ? (
+          // Guiño: el ojo derecho se entrecierra.
+          <rect x={108} y={62} width={22} height={14} rx={7} fill={EYE} />
+        ) : (
+          <rect x={108} y={50} width={22} height={26} rx={9} fill={EYE} />
+        )}
+        {/* Brillo del LED */}
+        <rect x={74} y={54} width={6} height={6} rx={2} fill="#E0F2FE" opacity={0.55} />
+        <rect
+          x={112}
+          y={mood === 'apuntar_puntero' ? 66 : 54}
+          width={6}
+          height={6}
+          rx={2}
+          fill="#E0F2FE"
+          opacity={0.55}
+        />
+      </g>
+    );
+  };
 
   return (
     <div
@@ -112,288 +192,311 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
     >
       {/* Burbuja de diálogo contextual (Speech Bubble) */}
       {speechBubble && (
-        <div className="absolute -top-14 z-30 max-w-xs px-3.5 py-1.5 bg-slate-900/95 border border-cyan-500/60 rounded-xl text-xs font-medium text-cyan-200 shadow-lg shadow-cyan-500/20 backdrop-blur-md animate-bounce">
+        <div className="absolute -top-14 z-30 max-w-[15rem] px-3.5 py-2 rounded-2xl bg-slate-900/95 border border-cyan-400/50 text-[11px] font-medium leading-snug text-cyan-100 shadow-xl shadow-cyan-500/20 backdrop-blur-md">
           <div className="line-clamp-2">{speechBubble}</div>
           {/* Triangulito de la burbuja */}
-          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-b border-r border-cyan-500/60 transform rotate-45" />
+          <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-[2px] bg-slate-900 border-b border-r border-cyan-400/50 transform rotate-45" />
         </div>
       )}
 
-      {/* SVG del asistente: ilustración 2D con contorno negro */}
+      {/* SVG del asistente: chibi con visor, chaleco y extremidades flotantes */}
       <div className={`relative ${sizeMap[size]} transition-all duration-300`}>
         <svg
           viewBox="0 0 200 200"
-          className="w-full h-full drop-shadow-[0_10px_18px_rgba(34,211,238,0.16)] drop-shadow-[0_4px_8px_rgba(15,23,42,0.18)]"
+          className="w-full h-full overflow-visible drop-shadow-[0_12px_22px_rgba(56,189,248,0.18)] drop-shadow-[0_4px_10px_rgba(2,6,23,0.35)]"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           role="img"
           aria-label={`${ASSISTANT_NAME}, robot asistente`}
         >
           <defs>
-            <linearGradient id={bodyGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="60%" stopColor="#fbfdff" />
-              <stop offset="100%" stopColor="#eef3f8" />
+            {/* Halo suave detrás del robot */}
+            <radialGradient id={haloGradientId} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor={led} stopOpacity={0.24} />
+              <stop offset="55%" stopColor={led} stopOpacity={0.08} />
+              <stop offset="100%" stopColor={led} stopOpacity={0} />
+            </radialGradient>
+
+            {/* Carcasa gris clara con volumen */}
+            <linearGradient id={shellGradientId} x1="0%" y1="0%" x2="30%" y2="100%">
+              <stop offset="0%" stopColor="#E8EDF3" />
+              <stop offset="55%" stopColor="#CBD5E1" />
+              <stop offset="100%" stopColor="#B7C4D4" />
             </linearGradient>
-            <linearGradient id={headGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="70%" stopColor="#fbfdff" />
-              <stop offset="100%" stopColor="#f0f5fa" />
+
+            {/* Chaleco azul formal */}
+            <linearGradient id={vestGradientId} x1="0%" y1="0%" x2="25%" y2="100%">
+              <stop offset="0%" stopColor="#3B82F6" />
+              <stop offset="55%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#1D4ED8" />
             </linearGradient>
-            <linearGradient id={limbGradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#e8eef5" />
+
+            {/* Cristal oscuro del visor */}
+            <linearGradient id={visorGradientId} x1="0%" y1="0%" x2="40%" y2="100%">
+              <stop offset="0%" stopColor="#0B1120" />
+              <stop offset="100%" stopColor="#0F172A" />
             </linearGradient>
-            <clipPath id={bodyClipId}>
-              <path d={BODY_PATH} />
-            </clipPath>
-            <clipPath id={headClipId}>
-              <ellipse cx="100" cy={HEAD_CY} rx="33" ry="26" />
+
+            <linearGradient id={visorAlertGradientId} x1="0%" y1="0%" x2="40%" y2="100%">
+              <stop offset="0%" stopColor="#22090F" />
+              <stop offset="100%" stopColor="#3B111C" />
+            </linearGradient>
+
+            <filter id={glowFilterId} x="-80%" y="-80%" width="260%" height="260%">
+              <feGaussianBlur stdDeviation="3.2" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+
+            <clipPath id={visorClipId}>
+              <rect x="50" y="30" width="100" height="62" rx="24" />
             </clipPath>
           </defs>
 
-          {/* Sombra proyectada en el suelo */}
-          <ellipse cx="100" cy="194" rx="46" ry="6.5" fill="#020617" opacity="0.5" />
-          <ellipse cx="100" cy="194" rx="34" ry="4.5" fill="#22d3ee" opacity="0.14" />
+          {/* Halo ambiental */}
+          <ellipse cx="100" cy="82" rx="88" ry="78" fill={`url(#${haloGradientId})`} />
 
-          {/* Grupo principal con animación de flotación / empuje */}
-          <g className={`origin-center transition-all duration-300 ${bodyAnimation}`}>
-            {/* PIERNAS: cápsulas con contorno, nacen bajo el cuerpo */}
-            <g>
-              <rect
-                x="73"
-                y="152"
-                width="24"
-                height="40"
-                rx="12"
-                fill={`url(#${limbGradientId})`}
-                stroke={INK}
-                strokeWidth="5"
+          {/* Sombra en el suelo */}
+          <ellipse cx="100" cy="194" rx="40" ry="5" fill="#020617" opacity={0.4} />
+          <ellipse cx="100" cy="194" rx="22" ry="3" fill={led} opacity={0.18} />
+
+          {/* Anillos de escaneo al pensar (detrás del robot) */}
+          {mood === 'buscar_antena' && (
+            <g fill="none" stroke={EYE}>
+              <circle
+                cx={100}
+                cy={60}
+                r={66}
+                strokeWidth="2"
+                className="robot-scan"
               />
-              <rect
-                x="103"
-                y="152"
-                width="24"
-                height="40"
-                rx="12"
-                fill={`url(#${limbGradientId})`}
-                stroke={INK}
-                strokeWidth="5"
+              <circle
+                cx={100}
+                cy={60}
+                r={74}
+                strokeWidth="1.4"
+                className="robot-scan"
+                style={{ animationDelay: '320ms' }}
               />
             </g>
+          )}
 
-            {/* CUERPO INFLABLE EN FORMA DE PERA */}
-            <path
-              d={BODY_PATH}
-              fill={`url(#${bodyGradientId})`}
-              stroke={INK}
-              strokeWidth="5.5"
-              strokeLinejoin="round"
-            />
-
-            {/* Sombras grises interiores */}
-            <g clipPath={`url(#${bodyClipId})`}>
-              <ellipse cx="140" cy="140" rx="20" ry="34" fill="#e2e8f0" />
-              <ellipse cx="148" cy="142" rx="10" ry="28" fill="#cbd5e1" opacity="0.55" />
-              <ellipse cx="100" cy="180" rx="48" ry="14" fill="#e2e8f0" />
-              <ellipse cx="100" cy="84" rx="30" ry="10" fill="#e2e8f0" opacity="0.8" />
-            </g>
-
-            {/* LÍNEA DEL PECHO */}
-            <path
-              d="M67 112 C83 118 117 118 133 112"
-              stroke={INK}
-              strokeWidth="3.2"
-              strokeLinecap="round"
-            />
-
-            {/* INSIGNIA CON LA ONDA */}
-            <circle
-              cx="100"
-              cy="96"
-              r="8.5"
-              fill="#ffffff"
-              stroke={INK}
-              strokeWidth="3"
-            />
-            {mood === 'sin_senal' ? (
-              <path
-                d="M96.5 93 L103.5 100 M103.5 93 L96.5 100"
-                stroke="#dc2626"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-              />
-            ) : (
-              <path
-                d="M95.5 96 Q98 93 100 96 Q102 99 104.5 96"
-                stroke={INK}
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                fill="none"
-                className={mood === 'buscar_antena' ? 'animate-pulse' : undefined}
-              />
-            )}
-
-            {/* BRAZOS DELANTE DEL CUERPO: hombro redondeado visible */}
-            {mood === 'apuntar_puntero'
-              ? renderArm(RIGHT_ARM_POINT)
-              : mood === 'empujar_pantalla'
-                ? renderArm(RIGHT_ARM_PUSH)
-                : mood === 'celebrar'
-                  ? renderArm(RIGHT_ARM_RAISED)
-                  : renderArm(RIGHT_ARM_IDLE)}
-
-            {renderArm(LEFT_ARM_IDLE)}
-
-            {/* CABEZA CON CONTORNO COMPLETO */}
+          {/* Aviso de error alrededor de la cabeza */}
+          {isAlert && (
             <ellipse
-              cx="100"
-              cy={HEAD_CY}
-              rx="33"
-              ry="26"
-              fill={`url(#${headGradientId})`}
-              stroke={INK}
-              strokeWidth="5.5"
+              cx={100}
+              cy={60}
+              rx={80}
+              ry={58}
+              fill="none"
+              stroke={ALERT}
+              strokeWidth="1.8"
+              strokeOpacity={0.45}
+              strokeDasharray="5 7"
+              className="animate-pulse"
             />
-            <g clipPath={`url(#${headClipId})`}>
-              <ellipse cx="116" cy="71" rx="17" ry="11" fill="#e2e8f0" opacity="0.8" />
-              <ellipse cx="84" cy="45" rx="16" ry="7" fill="#ffffff" />
+          )}
+
+          <g className={rootAnimation}>
+            {/* Pies flotantes: bloques con la misma geometría de la cabeza */}
+            <g className="robot-limb">
+              <rect
+                x={76}
+                y={172}
+                width={22}
+                height={20}
+                rx={7}
+                fill={`url(#${shellGradientId})`}
+                stroke={INK}
+                strokeWidth={4.5}
+              />
+              <rect
+                x={102}
+                y={172}
+                width={22}
+                height={20}
+                rx={7}
+                fill={`url(#${shellGradientId})`}
+                stroke={INK}
+                strokeWidth={4.5}
+              />
+              <path d="M81 178 H93" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" opacity={0.7} />
+              <path d="M107 178 H119" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" opacity={0.7} />
             </g>
 
-            {/* OJOS SEGÚN ESTADO ANÍMICO */}
-            {(mood === 'idle_atento' || mood === 'apuntar_puntero') && (
-              <g>
-                <line
-                  x1="92"
-                  y1="56"
-                  x2="108"
-                  y2="56"
-                  stroke={INK}
-                  strokeWidth="3.2"
-                  strokeLinecap="round"
-                />
-                <circle cx="87" cy="56" r="5.2" fill={INK} />
-                <circle cx="113" cy="56" r="5.2" fill={INK} />
-              </g>
-            )}
+            {/* Brazos flotantes estilo EVE */}
+            <g className="robot-limb" style={{ animationDelay: '180ms' }}>
+              {renderArm(pose.left)}
+              {renderArm(pose.right)}
+            </g>
 
-            {mood === 'empujar_pantalla' && (
-              <g stroke={INK} strokeWidth="3.5" strokeLinecap="round" fill="none">
-                <path d="M82 57 Q87 53 92 57" />
-                <path d="M108 57 Q113 53 118 57" />
-              </g>
-            )}
+            {/* Cuello */}
+            <rect
+              x={88}
+              y={98}
+              width={24}
+              height={20}
+              rx={9}
+              fill="#94A3B8"
+              stroke={INK}
+              strokeWidth={3.5}
+            />
 
-            {mood === 'buscar_antena' && (
-              <g>
-                <circle
-                  cx="87"
-                  cy="56"
-                  r="7.5"
-                  stroke={INK}
-                  strokeWidth="2.5"
-                  fill="none"
-                  className="animate-pulse"
-                />
-                <circle cx="87" cy="56" r="2.5" fill={INK} />
-                <circle
-                  cx="113"
-                  cy="56"
-                  r="7.5"
-                  stroke={INK}
-                  strokeWidth="2.5"
-                  fill="none"
-                  className="animate-pulse"
-                />
-                <circle cx="113" cy="56" r="2.5" fill={INK} />
-              </g>
-            )}
+            {/* Torso: chaleco formal con camisa y corbata */}
+            <rect
+              x={66}
+              y={112}
+              width={68}
+              height={54}
+              rx={20}
+              fill={`url(#${vestGradientId})`}
+              stroke={INK}
+              strokeWidth={4.5}
+            />
+            {/* Camisa blanca en V */}
+            <path d="M88 113 L100 140 L112 113 Z" fill="#FFFFFF" />
+            <path
+              d="M88 113 L100 140 L112 113"
+              fill="none"
+              stroke="#1D4ED8"
+              strokeWidth="2"
+              strokeOpacity={0.45}
+            />
+            {/* Corbata oscura */}
+            <path d="M96.8 121 L103.2 121 L102.5 126.5 L97.5 126.5 Z" fill={INK} />
+            <path d="M97.5 126.5 L102.5 126.5 L103.3 133.5 L100 137 L96.7 133.5 Z" fill={INK} />
+            <path d="M100 128.5 V134" stroke="#475569" strokeWidth="1" strokeLinecap="round" />
+            {/* Botones del chaleco */}
+            <circle cx={100} cy={150} r={1.6} fill={INK} opacity={0.75} />
+            <circle cx={100} cy={158} r={1.6} fill={INK} opacity={0.75} />
 
-            {mood === 'sin_senal' && (
-              <g stroke="#dc2626" strokeWidth="3.2" strokeLinecap="round">
-                <path d="M82 51 L90 59 M90 51 L82 59" />
-                <path d="M110 51 L118 59 M118 51 L110 59" />
-              </g>
-            )}
-
-            {mood === 'celebrar' && (
-              <g stroke={INK} strokeWidth="3.8" strokeLinecap="round" fill="none">
-                <path d="M81 58 Q87 50 93 58" />
-                <path d="M107 58 Q113 50 119 58" />
-              </g>
-            )}
-
-            {/* Anillos de escaneo */}
-            {mood === 'buscar_antena' && (
-              <g fill="none" stroke="#94a3b8">
-                <circle
-                  cx="100"
-                  cy={HEAD_CY}
-                  r="36"
-                  strokeWidth="2.5"
-                  opacity="0.8"
-                  className="animate-ping"
-                  style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-                />
-                <circle
-                  cx="100"
-                  cy={HEAD_CY}
-                  r="47"
-                  strokeWidth="1.8"
-                  opacity="0.5"
-                  className="animate-ping"
-                  style={{
-                    transformBox: 'fill-box',
-                    transformOrigin: 'center',
-                    animationDelay: '250ms'
-                  }}
-                />
-              </g>
-            )}
-
-            {/* Aviso de error alrededor de la cabeza */}
-            {mood === 'sin_senal' && (
-              <ellipse
-                cx="100"
-                cy={HEAD_CY}
-                rx="39"
-                ry="32"
-                fill="none"
-                stroke="#dc2626"
-                strokeWidth="1.8"
-                opacity="0.6"
-                strokeDasharray="5 4"
+            {/* Cabeza: bloque horizontal dominante */}
+            <g className={`robot-head ${mood === 'buscar_antena' ? 'robot-head--tilt' : ''}`}>
+              {/* Cápsulas laterales (antenas/orejas) */}
+              <rect
+                x={24}
+                y={48}
+                width={16}
+                height={32}
+                rx={8}
+                fill={`url(#${shellGradientId})`}
+                stroke={INK}
+                strokeWidth={3.5}
               />
-            )}
+              <rect
+                x={160}
+                y={48}
+                width={16}
+                height={32}
+                rx={8}
+                fill={`url(#${shellGradientId})`}
+                stroke={INK}
+                strokeWidth={3.5}
+              />
+              <circle cx={32} cy={57} r={2.4} fill={led} filter={`url(#${glowFilterId})`} />
+              <circle cx={168} cy={57} r={2.4} fill={led} filter={`url(#${glowFilterId})`} />
 
-            {/* Chispas de celebración */}
-            {mood === 'celebrar' && (
-              <g fill="#94a3b8">
-                <circle cx="42" cy="48" r="3" className="animate-pulse" />
-                <circle
-                  cx="158"
-                  cy="48"
-                  r="3"
-                  className="animate-pulse"
-                  style={{ animationDelay: '150ms' }}
-                />
-                <circle
-                  cx="54"
-                  cy="26"
-                  r="2.5"
-                  className="animate-pulse"
-                  style={{ animationDelay: '300ms' }}
-                />
-                <circle
-                  cx="146"
-                  cy="26"
-                  r="2.5"
-                  className="animate-pulse"
-                  style={{ animationDelay: '450ms' }}
-                />
+              {/* Marco exterior */}
+              <rect
+                x={38}
+                y={16}
+                width={124}
+                height={88}
+                rx={38}
+                fill={`url(#${shellGradientId})`}
+                stroke={INK}
+                strokeWidth={4.5}
+              />
+              {/* Brillo superior de la carcasa */}
+              <path
+                d="M54 28 C70 20 130 20 146 28"
+                stroke="#FFFFFF"
+                strokeWidth="3"
+                strokeLinecap="round"
+                opacity={0.55}
+              />
+
+              {/* Pantalla del visor */}
+              <rect
+                x={50}
+                y={30}
+                width={100}
+                height={62}
+                rx={24}
+                fill={`url(#${isAlert ? visorAlertGradientId : visorGradientId})`}
+                stroke={INK}
+                strokeWidth="3"
+              />
+              <g clipPath={`url(#${visorClipId})`}>
+                {/* Reflejo del cristal */}
+                <path d="M56 48 L80 33 L96 33 L66 62 Z" fill="#FFFFFF" opacity={0.06} />
+                <path d="M50 82 H150" stroke={EYE} strokeWidth="1" opacity={0.12} />
               </g>
-            )}
+              <rect
+                x={53}
+                y={33}
+                width={94}
+                height={56}
+                rx={21}
+                fill="none"
+                stroke={led}
+                strokeOpacity={0.22}
+                strokeWidth="1.2"
+              />
+
+              {/* Ojos LED */}
+              {renderEyes()}
+            </g>
           </g>
+
+          {/* Chispas de celebración */}
+          {mood === 'celebrar' && (
+            <g>
+              <circle cx={30} cy={40} r={3.2} fill="#38BDF8" className="animate-pulse" />
+              <circle
+                cx={170}
+                cy={44}
+                r={2.8}
+                fill="#FBBF24"
+                className="animate-pulse"
+                style={{ animationDelay: '150ms' }}
+              />
+              <circle
+                cx={46}
+                cy={18}
+                r={2.4}
+                fill="#A855F7"
+                className="animate-pulse"
+                style={{ animationDelay: '300ms' }}
+              />
+              <circle
+                cx={154}
+                cy={16}
+                r={3}
+                fill="#34D399"
+                className="animate-pulse"
+                style={{ animationDelay: '450ms' }}
+              />
+              <circle
+                cx={26}
+                cy={120}
+                r={2.4}
+                fill="#FBBF24"
+                className="animate-pulse"
+                style={{ animationDelay: '600ms' }}
+              />
+              <circle
+                cx={174}
+                cy={124}
+                r={2.6}
+                fill="#38BDF8"
+                className="animate-pulse"
+                style={{ animationDelay: '750ms' }}
+              />
+            </g>
+          )}
         </svg>
       </div>
 

@@ -788,6 +788,7 @@ export const P03_NotebookLM: React.FC = () => {
               <RobotAvatar
                 mood={robotMood}
                 size="sm"
+                isTyping={inputMessage.trim().length > 0 && !isSearching}
                 onClick={() => setRobotMood('buscar_antena', 1500)}
               />
               <div className="text-xs">
