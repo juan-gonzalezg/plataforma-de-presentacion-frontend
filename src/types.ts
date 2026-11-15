@@ -6,6 +6,12 @@ export type RobotMood =
   | 'sin_senal' 
   | 'celebrar';
 
+/**
+ * Presencia del asistente durante la presentación. «Discreto» es el valor
+ * recomendado: robot pequeño y estático para no distraer al público.
+ */
+export type RobotPresence = 'completo' | 'discreto' | 'oculto';
+
 export type AppView = 'home' | 'presentation' | 'notebooklm';
 
 export type ContrastMode = 'cinema-dark' | 'projector-high-contrast' | 'clean-light';

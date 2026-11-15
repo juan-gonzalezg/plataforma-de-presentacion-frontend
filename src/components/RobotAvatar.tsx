@@ -10,6 +10,8 @@ interface RobotAvatarProps {
   onClick?: () => void;
   /** El usuario está redactando: el robot se asoma con curiosidad. */
   isTyping?: boolean;
+  /** Modo discreto para proyección: sin animaciones ni efectos llamativos. */
+  quiet?: boolean;
 }
 
 /**
@@ -74,7 +76,8 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
   size = 'md',
   className = '',
   onClick,
-  isTyping = false
+  isTyping = false,
+  quiet = false
 }) => {
   // Dimensiones según el tamaño solicitado
   const sizeMap = {
@@ -96,16 +99,19 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
 
   const isAlert = mood === 'sin_senal';
   const led = isAlert ? ALERT : EYE;
-  const pose = ARM_POSES[mood];
+  // En modo discreto la pose queda fija: el robot actúa solo como indicador.
+  const pose = quiet ? ARM_POSES.idle_atento : ARM_POSES[mood];
 
   // Comportamiento del cuerpo completo (ficha del personaje).
-  const rootAnimation = isTyping
-    ? 'robot-peek'
-    : mood === 'celebrar'
-      ? 'robot-happy'
-      : mood === 'empujar_pantalla'
-        ? 'robot-peek'
-        : 'robot-float';
+  const rootAnimation = quiet
+    ? ''
+    : isTyping
+      ? 'robot-peek'
+      : mood === 'celebrar'
+        ? 'robot-happy'
+        : mood === 'empujar_pantalla'
+          ? 'robot-peek'
+          : 'robot-float';
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!onClick) return;
@@ -143,8 +149,9 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
       );
     }
 
-    const eyeClass =
-      mood === 'buscar_antena'
+    const eyeClass = quiet
+      ? undefined
+      : mood === 'buscar_antena'
         ? 'robot-blink'
         : mood === 'celebrar'
           ? 'animate-pulse'
@@ -263,7 +270,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
           <ellipse cx="100" cy="194" rx="22" ry="3" fill={led} opacity={0.18} />
 
           {/* Anillos de escaneo al pensar (detrás del robot) */}
-          {mood === 'buscar_antena' && (
+          {!quiet && mood === 'buscar_antena' && (
             <g fill="none" stroke={EYE}>
               <circle
                 cx={100}
@@ -284,7 +291,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
           )}
 
           {/* Aviso de error alrededor de la cabeza */}
-          {isAlert && (
+          {!quiet && isAlert && (
             <ellipse
               cx={100}
               cy={60}
@@ -301,7 +308,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
 
           <g className={rootAnimation}>
             {/* Pies flotantes: bloques con la misma geometría de la cabeza */}
-            <g className="robot-limb">
+            <g className={quiet ? undefined : 'robot-limb'}>
               <rect
                 x={76}
                 y={172}
@@ -327,7 +334,10 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
             </g>
 
             {/* Brazos flotantes estilo EVE */}
-            <g className="robot-limb" style={{ animationDelay: '180ms' }}>
+            <g
+              className={quiet ? undefined : 'robot-limb'}
+              style={quiet ? undefined : { animationDelay: '180ms' }}
+            >
               {renderArm(pose.left)}
               {renderArm(pose.right)}
             </g>
@@ -373,7 +383,11 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
             <circle cx={100} cy={158} r={1.6} fill={INK} opacity={0.75} />
 
             {/* Cabeza: bloque horizontal dominante */}
-            <g className={`robot-head ${mood === 'buscar_antena' ? 'robot-head--tilt' : ''}`}>
+            <g
+              className={`robot-head ${
+                !quiet && mood === 'buscar_antena' ? 'robot-head--tilt' : ''
+              }`}
+            >
               {/* Cápsulas laterales (antenas/orejas) */}
               <rect
                 x={24}
@@ -452,7 +466,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
           </g>
 
           {/* Chispas de celebración */}
-          {mood === 'celebrar' && (
+          {!quiet && mood === 'celebrar' && (
             <g>
               <circle cx={30} cy={40} r={3.2} fill="#38BDF8" className="animate-pulse" />
               <circle

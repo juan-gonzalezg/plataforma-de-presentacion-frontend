@@ -10,7 +10,9 @@ import {
   AlertTriangle,
   Code2,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Bot,
+  EyeOff
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
@@ -18,6 +20,14 @@ import { SmartHighlightDrawer } from './SmartHighlightDrawer';
 import { SpotlightModal } from './SpotlightModal';
 import { StickyNotesOverlay } from './StickyNotesOverlay';
 import { AccessibilityControls } from './AccessibilityControls';
+import { RobotPresence } from '../types';
+import {
+  ROBOT_PRESENCE_DESCRIPTION,
+  ROBOT_PRESENCE_LABEL,
+  nextRobotPresence,
+  readRobotPresence,
+  saveRobotPresence
+} from '../lib/robotPresence';
 
 export const P02_Presentacion: React.FC = () => {
   const {
@@ -108,6 +118,42 @@ export const P02_Presentacion: React.FC = () => {
     };
   }, [isDrawerOpen, activeHighlightBlockId, activeHighlightPage, currentSlideIndex]);
 
+  // Presencia del robot durante la exposición (Completo / Discreto / Oculto).
+  // «Discreto» es el valor por defecto: robot pequeño, estático y sin burbujas.
+  const [robotPresence, setRobotPresence] = React.useState<RobotPresence>(() =>
+    readRobotPresence()
+  );
+
+  React.useEffect(() => {
+    saveRobotPresence(robotPresence);
+  }, [robotPresence]);
+
+  const cycleRobotPresence = React.useCallback(() => {
+    setRobotPresence((current) => nextRobotPresence(current));
+  }, []);
+
+  // Tecla R: alterna la presencia sin abrir menús en plena charla.
+  React.useEffect(() => {
+    const handleRobotKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'r' && event.key !== 'R') return;
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+
+      const active = document.activeElement as HTMLElement | null;
+      const tagName = active?.tagName.toLowerCase();
+      if (tagName === 'input' || tagName === 'textarea' || active?.isContentEditable) {
+        return;
+      }
+
+      event.preventDefault();
+      cycleRobotPresence();
+    };
+
+    window.addEventListener('keydown', handleRobotKeyDown);
+    return () => window.removeEventListener('keydown', handleRobotKeyDown);
+  }, [cycleRobotPresence]);
+
+  const isDiscreteRobot = robotPresence === 'discreto';
+
   if (!selectedTopic) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100">
@@ -194,6 +240,37 @@ export const P02_Presentacion: React.FC = () => {
             <span className="hidden md:inline">Modo NotebookLM</span>
           </button>
 
+          {/* Presencia del robot en la exposición (tecla R) */}
+          <button
+            onClick={cycleRobotPresence}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+              robotPresence === 'completo'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
+                : robotPresence === 'discreto'
+                  ? 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
+                  : 'bg-slate-900/70 border-slate-800 text-slate-500 hover:text-slate-300'
+            }`}
+            title={`Robot en presentación: ${ROBOT_PRESENCE_LABEL[robotPresence]}. ${ROBOT_PRESENCE_DESCRIPTION[robotPresence]} Clic o tecla R para cambiar.`}
+            aria-label={`Presencia del robot: ${ROBOT_PRESENCE_LABEL[robotPresence]}. Cambiar con clic o tecla R.`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                robotPresence === 'completo'
+                  ? 'bg-emerald-400'
+                  : robotPresence === 'discreto'
+                    ? 'bg-cyan-400'
+                    : 'bg-slate-600'
+              }`}
+            />
+            {robotPresence === 'oculto' ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Bot className="w-3.5 h-3.5" />
+            )}
+            <span className="hidden sm:inline">Robot: {ROBOT_PRESENCE_LABEL[robotPresence]}</span>
+            <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-900/60 border border-slate-700">R</kbd>
+          </button>
+
           <AccessibilityControls />
         </div>
       </header>
@@ -269,20 +346,30 @@ export const P02_Presentacion: React.FC = () => {
           )}
         </div>
 
-        {/* El robot 2D reactivo en el escenario (Épica 3: BOT) */}
-        <div
-          className={`fixed z-30 transition-all duration-500 ${
-            isDrawerOpen ? 'right-[480px]' : 'right-10'
-          } ${robotTop === null ? 'bottom-24' : ''}`}
-          style={robotTop !== null ? { top: `${robotTop}px` } : undefined}
-        >
-          <RobotAvatar
-            mood={robotMood}
-            speechBubble={robotSpeechBubble}
-            size="md"
-            onClick={toggleSpotlight}
-          />
-        </div>
+        {/* El robot 2D reactivo en el escenario (Épica 3: BOT).
+            En modo discreto se reduce a un indicador pequeño y estático. */}
+        {robotPresence !== 'oculto' && (
+          <div
+            className={`fixed z-30 transition-all duration-500 ${
+              isDrawerOpen ? 'right-[480px]' : isDiscreteRobot ? 'right-6' : 'right-10'
+            } ${
+              isDiscreteRobot
+                ? 'bottom-24 opacity-70 hover:opacity-100'
+                : robotTop === null
+                  ? 'bottom-24'
+                  : ''
+            }`}
+            style={!isDiscreteRobot && robotTop !== null ? { top: `${robotTop}px` } : undefined}
+          >
+            <RobotAvatar
+              mood={robotMood}
+              speechBubble={isDiscreteRobot ? null : robotSpeechBubble}
+              size={isDiscreteRobot ? 'sm' : 'md'}
+              quiet={isDiscreteRobot}
+              onClick={toggleSpotlight}
+            />
+          </div>
+        )}
       </main>
 
       {/* Barra Inferior de Miniaturas y Línea de Tiempo (HU-PRS-01) */}
@@ -335,6 +422,7 @@ export const P02_Presentacion: React.FC = () => {
           <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">←</kbd> <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">→</kbd> Diapositivas</span>
           <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">N</kbd> Notas</span>
           <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Q</kbd> Duda</span>
+          <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">R</kbd> Robot</span>
         </div>
       </footer>
 
