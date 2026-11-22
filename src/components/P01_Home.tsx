@@ -25,6 +25,7 @@ import { RobotAvatar } from './RobotAvatar';
 import { AccessibilityControls } from './AccessibilityControls';
 import { SpotlightTour, TourStep } from './SpotlightTour';
 import { hasSeenGuide, markGuideSeen } from '../lib/guideSeen';
+import { SHOW_INTERNAL_STATUS } from '../lib/publicMode';
 import {
   clearOfflineCache,
   getOfflineCacheInfo,
@@ -445,34 +446,36 @@ export const P01_Home: React.FC = () => {
               </span>
             </button>
 
-            {/* Indicador de estado: se lee como estado, no como acción. */}
-            <div
-              className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs ${
-                ragReady
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                  : ragOffline
-                    ? 'border-red-500/30 bg-red-500/10 text-red-300'
-                    : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-              }`}
-              title={
-                systemHealth
-                  ? `Módulos indexados: ${systemHealth.loadedTopics} · LLM: ${
-                      systemHealth.llmConfigured ? 'conectado' : 'modo extractivo'
-                    }`
-                  : 'Consultando el estado del backend...'
-              }
-            >
-              <Database className="h-3.5 w-3.5" />
-              <span>
-                {!systemHealth
-                  ? 'Verificando RAG...'
-                  : ragReady
-                    ? `RAG Vectorial Listo (${systemHealth.loadedTopics})`
+            {/* Diagnóstico técnico: solo se muestra a operadores. */}
+            {SHOW_INTERNAL_STATUS && (
+              <div
+                className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs ${
+                  ragReady
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
                     : ragOffline
-                      ? 'Backend sin conexión'
-                      : 'RAG en modo degradado'}
-              </span>
-            </div>
+                      ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                      : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                }`}
+                title={
+                  systemHealth
+                    ? `Módulos indexados: ${systemHealth.loadedTopics} · LLM: ${
+                        systemHealth.llmConfigured ? 'conectado' : 'modo extractivo'
+                      }`
+                    : 'Consultando el estado del backend...'
+                }
+              >
+                <Database className="h-3.5 w-3.5" />
+                <span>
+                  {!systemHealth
+                    ? 'Verificando RAG...'
+                    : ragReady
+                      ? `RAG Vectorial Listo (${systemHealth.loadedTopics})`
+                      : ragOffline
+                        ? 'Backend sin conexión'
+                        : 'RAG en modo degradado'}
+                </span>
+              </div>
+            )}
             <AccessibilityControls />
             <button
               type="button"

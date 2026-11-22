@@ -89,7 +89,7 @@ export const SpotlightModal: React.FC = () => {
               placeholder="¿Tienes una duda? Escribe aquí... (ej. ¿Cómo funciona Circuit Breaker?)"
               maxLength={150}
               disabled={isSearching}
-              className="w-full bg-slate-950 border-2 border-slate-700 focus:border-cyan-400 rounded-xl pl-13 pr-28 py-4 text-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 transition-all font-sans"
+              className="w-full bg-slate-950 border-2 border-slate-700 focus:border-cyan-400 rounded-xl pl-12 pr-28 py-4 text-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 transition-all font-sans"
             />
 
             {/* Contador y botón de envío */}
@@ -138,7 +138,7 @@ export const SpotlightModal: React.FC = () => {
           {/* Resumen de Política RAG */}
           <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 text-[11px] text-slate-500">
             <span className="flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-cyan-400" /> Prioridad: notas oficiales (síntesis en menos de 4 s)
+              <Sparkles className="w-3 h-3 text-cyan-400" /> Prioridad: notas oficiales
             </span>
             <span className="flex items-center gap-1">
               <Globe className="w-3 h-3 text-emerald-400" /> Web en segundo plano si no está en el texto base

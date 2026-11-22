@@ -11,9 +11,11 @@ import {
   History,
   Brain,
   Globe,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
+import { SHOW_INTERNAL_STATUS } from '../lib/publicMode';
 import { ContrastMode, FontSizeSetting } from '../types';
 
 export const AccessibilityControls: React.FC = () => {
@@ -65,7 +67,9 @@ export const AccessibilityControls: React.FC = () => {
       >
         <Eye className="w-4 h-4 text-cyan-400" />
         <span className="hidden md:inline">Proyección & Legibilidad</span>
-        <span className={`w-2 h-2 rounded-full ml-1 ${statusDot}`} />
+        {SHOW_INTERNAL_STATUS && (
+          <span className={`w-2 h-2 rounded-full ml-1 ${statusDot}`} />
+        )}
       </button>
 
       <button
@@ -95,9 +99,10 @@ export const AccessibilityControls: React.FC = () => {
             </span>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-slate-400 hover:text-white"
+              aria-label="Cerrar opciones"
+              className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
           </div>
 
@@ -168,55 +173,57 @@ export const AccessibilityControls: React.FC = () => {
             </div>
           </div>
 
-          {/* Estado real del sistema (HU-HOM-01) */}
-          <div className="pt-2 border-t border-slate-800 space-y-1.5 text-[11px] text-slate-400">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5">
-                <Wifi className="w-3.5 h-3.5 text-cyan-400" /> RAG Local Vectorial:
-              </span>
-              {isCheckingHealth && !systemHealth ? (
-                <span className="font-semibold text-slate-300 flex items-center gap-1">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verificando...
+          {/* Estado técnico: solo operadores, nunca en el modo público. */}
+          {SHOW_INTERNAL_STATUS && (
+            <div className="pt-2 border-t border-slate-800 space-y-1.5 text-[11px] text-slate-400">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <Wifi className="w-3.5 h-3.5 text-cyan-400" /> RAG Local Vectorial:
                 </span>
-              ) : systemHealth?.vectorDbActive ? (
-                <span className="font-semibold text-emerald-300 flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Activo ({systemHealth.loadedTopics})
-                </span>
-              ) : (
-                <span className="font-semibold text-amber-300 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5" /> No disponible
-                </span>
-              )}
-            </div>
+                {isCheckingHealth && !systemHealth ? (
+                  <span className="font-semibold text-slate-300 flex items-center gap-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verificando...
+                  </span>
+                ) : systemHealth?.vectorDbActive ? (
+                  <span className="font-semibold text-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Activo ({systemHealth.loadedTopics})
+                  </span>
+                ) : (
+                  <span className="font-semibold text-amber-300 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" /> No disponible
+                  </span>
+                )}
+              </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5">
-                <Brain className="w-3.5 h-3.5 text-purple-400" /> Generación LLM:
-              </span>
-              <span
-                className={`font-semibold ${
-                  systemHealth?.llmConfigured ? 'text-emerald-300' : 'text-amber-300'
-                }`}
-              >
-                {systemHealth?.llmConfigured ? 'Conectado' : 'Modo extractivo'}
-              </span>
-            </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <Brain className="w-3.5 h-3.5 text-purple-400" /> Generación LLM:
+                </span>
+                <span
+                  className={`font-semibold ${
+                    systemHealth?.llmConfigured ? 'text-emerald-300' : 'text-amber-300'
+                  }`}
+                >
+                  {systemHealth?.llmConfigured ? 'Conectado' : 'Modo extractivo'}
+                </span>
+              </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-emerald-400" /> Búsqueda web:
-              </span>
-              <span
-                className={`font-semibold ${
-                  systemHealth?.webConfigured ? 'text-emerald-300' : 'text-slate-400'
-                }`}
-              >
-                {systemHealth?.webConfigured
-                  ? systemHealth.webProvider ?? 'Activa'
-                  : 'Desactivada'}
-              </span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-emerald-400" /> Búsqueda web:
+                </span>
+                <span
+                  className={`font-semibold ${
+                    systemHealth?.webConfigured ? 'text-emerald-300' : 'text-slate-400'
+                  }`}
+                >
+                  {systemHealth?.webConfigured
+                    ? systemHealth.webProvider ?? 'Activa'
+                    : 'Desactivada'}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Acceso a Bitácora */}
           <button

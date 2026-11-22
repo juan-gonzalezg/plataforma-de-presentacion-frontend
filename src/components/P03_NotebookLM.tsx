@@ -26,6 +26,7 @@ import { AccessibilityControls } from './AccessibilityControls';
 import { SourceDocument } from './SourceDocument';
 import { PdfHighlightViewer } from './PdfHighlightViewer';
 import { parseNotesBlocks, extractNotesTitle } from '../lib/notes';
+import { SHOW_INTERNAL_STATUS } from '../lib/publicMode';
 import {
   buildChatMarkdown,
   buildNotesMarkdown,
@@ -511,20 +512,22 @@ export const P03_NotebookLM: React.FC = () => {
               {activeChip('ai')}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-              <span
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${
-                  llmStatus?.configured
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                    : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                }`}
-                title={
-                  llmStatus?.configured
-                    ? `Generación con ${llmStatus.provider} · ${llmStatus.model}`
-                    : 'Configura LLM_API_KEY / LLM_MODEL en el backend para activar la generación'
-                }
-              >
-                <Cpu className="h-3.5 w-3.5" />
-              </span>
+              {SHOW_INTERNAL_STATUS && (
+                <span
+                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${
+                    llmStatus?.configured
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                      : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                  }`}
+                  title={
+                    llmStatus?.configured
+                      ? `Generación con ${llmStatus.provider} · ${llmStatus.model}`
+                      : 'Configura LLM_API_KEY / LLM_MODEL en el backend para activar la generación'
+                  }
+                >
+                  <Cpu className="h-3.5 w-3.5" />
+                </span>
+              )}
               <button
                 type="button"
                 onClick={handleExportChat}
