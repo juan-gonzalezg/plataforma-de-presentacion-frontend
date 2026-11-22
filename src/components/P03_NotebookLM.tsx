@@ -938,7 +938,7 @@ export const P03_NotebookLM: React.FC = () => {
           {/* Fila inferior — Celda combinada a lo ancho: Diapositiva */}
           <section
             {...cellInteractionProps('slide')}
-            className={`flex ${studyRowHeight} flex-col overflow-hidden rounded-2xl border bg-slate-900/50 ${
+            className={`flex ${studyRowHeight} flex-col overflow-hidden rounded-2xl border bg-slate-900/50 lg:col-span-2 ${
               activeCell === 'slide' ? activeCellClass : 'border-slate-800/80'
             }`}
           >
