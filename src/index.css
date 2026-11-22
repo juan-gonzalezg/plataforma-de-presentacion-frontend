@@ -26,6 +26,9 @@
     /* Sombras suaves para el neumorphism de controles puntuales. */
     --soft-shadow-light: rgba(244, 241, 222, 0.09);
     --soft-shadow-dark: rgba(2, 8, 16, 0.55);
+
+    /* Salvia más clara para el borde de la celda activa. */
+    --accent-sage-strong: 165 196 166;
   }
 
   /* Tamaño base real: al aplicarse en <html>, escala todos los rem de
@@ -80,6 +83,13 @@
   }
 }
 
+/* Celda activa: borde salvia sólido y perceptible, sin sombras difusas.
+   Regla sin capa para que gane a las utilidades `border` de Tailwind. */
+.active-cell {
+  border-width: 2px;
+  border-color: rgb(var(--accent-sage-strong));
+}
+
 /* Con el spotlight abierto, los relieves se aplanan: el paso resaltado
    destaca por contraste, no por sombras que compitan con él. */
 .tour-active .soft-control,
@@ -106,6 +116,7 @@
   --slate-950: 13 27 42;
   --highlight-bg: rgba(119, 141, 122, 0.28);
   --highlight-border: #778d7a;
+  --accent-sage-strong: 165 196 166;
 }
 
 .theme-projector-high-contrast {
@@ -124,6 +135,7 @@
   --slate-950: 0 0 0;
   --highlight-bg: rgba(250, 204, 21, 0.4);
   --highlight-border: #facc15;
+  --accent-sage-strong: 190 220 190;
 }
 
 /* Claro relajante: crema en lugar de blanco, arena en las celdas. */
@@ -147,6 +159,9 @@
   /* En claro, la sombra clara es casi blanca y la oscura es arena. */
   --soft-shadow-light: rgba(255, 255, 255, 0.55);
   --soft-shadow-dark: rgba(90, 74, 52, 0.22);
+
+  /* Aquí el salvia debe ser oscuro para destacar sobre la arena. */
+  --accent-sage-strong: 74 102 74;
 }
 
 /* Menos ruido cromático: en ambos modos relajantes el foco y la acción

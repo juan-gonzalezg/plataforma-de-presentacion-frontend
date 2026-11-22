@@ -388,13 +388,13 @@ export const P01_Home: React.FC = () => {
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col p-4 sm:p-6 lg:p-8">
         {/* A. Barra superior / cabecera de estado */}
-        <header className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
+        <header className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
               <Sparkles className="w-5 h-5 text-slate-950" />
             </div>
-            <div>
-              <h1 className="text-lg font-black tracking-tight text-slate-100 uppercase sm:text-xl">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-black tracking-tight text-slate-100 uppercase sm:text-xl">
                 Presentación Interactiva <span className="text-cyan-400">&</span> Asistente RAG
               </h1>
               <p className="text-[11px] text-slate-400 sm:text-xs">
@@ -405,7 +405,7 @@ export const P01_Home: React.FC = () => {
 
           <div
             data-tour="home-status"
-            className="flex flex-wrap items-center gap-2 lg:justify-end"
+            className="flex flex-wrap items-center gap-1.5 lg:flex-nowrap lg:justify-end"
           >
             <button
               onClick={handleSync}
@@ -418,7 +418,7 @@ export const P01_Home: React.FC = () => {
               ) : (
                 <RefreshCw className="h-3.5 w-3.5 text-cyan-400" />
               )}
-              <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar Supabase'}</span>
+              <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</span>
             </button>
 
             <button
@@ -479,7 +479,7 @@ export const P01_Home: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
               title="Guía rápida del inicio"
             >
               <HelpCircle className="h-3.5 w-3.5" />

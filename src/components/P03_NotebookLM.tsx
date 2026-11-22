@@ -178,8 +178,8 @@ export const P03_NotebookLM: React.FC = () => {
   const hasPdf = Boolean(selectedTopic.files?.pdf);
   const showPdf = hasPdf && documentView === 'pdf';
 
-  // Borde salvia sólido y visible: el foco no depende de una sombra difusa.
-  const activeCellClass = 'border-2 border-[#778d7a]';
+  // Borde salvia de alto contraste: el foco se nota sin sombras difusas.
+  const activeCellClass = 'active-cell';
   // Misma altura para las tres celdas: al ampliar el PDF crecen juntas
   // la IA y la lámina, conservando el aspecto de celda combinada.
   const studyRowHeight = pdfExpanded
@@ -946,7 +946,7 @@ export const P03_NotebookLM: React.FC = () => {
           <section
             data-tour="study-slide"
             {...cellInteractionProps('slide')}
-            className={`flex ${studyRowHeight} flex-col overflow-hidden rounded-2xl border bg-slate-900/50 lg:col-span-2 ${
+            className={`col-span-full flex w-full min-w-0 ${studyRowHeight} flex-col overflow-hidden rounded-2xl border bg-slate-900/50 ${
               activeCell === 'slide' ? activeCellClass : 'border-slate-800/80'
             }`}
           >
