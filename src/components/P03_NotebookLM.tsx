@@ -143,6 +143,8 @@ export const P03_NotebookLM: React.FC = () => {
 
   // Indicador muy sutil de la celda que recibe el teclado.
   const activeCellClass = 'border-cyan-500/45 ring-1 ring-cyan-500/10';
+  // Misma altura para las tres celdas: IA, PDF y lámina quedan alineadas.
+  const studyRowHeight = 'h-[clamp(520px,62vh,680px)]';
   const activeChip = (cell: StudyCell) =>
     activeCell === cell ? (
       <span className="shrink-0 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300">
@@ -434,7 +436,7 @@ export const P03_NotebookLM: React.FC = () => {
           {/* Fila superior — Celda izquierda: Asistente de Estudio (IA) */}
           <section
             {...cellInteractionProps('ai')}
-            className={`flex h-[clamp(520px,62vh,680px)] min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-900/60 ${
+            className={`flex ${studyRowHeight} min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-900/60 ${
               activeCell === 'ai' ? activeCellClass : 'border-slate-800/80'
             }`}
           >
@@ -661,7 +663,7 @@ export const P03_NotebookLM: React.FC = () => {
             {...cellInteractionProps('pdf')}
             ref={pdfCellRef}
             className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-950/70 ${
-              pdfExpanded ? 'h-[min(82vh,900px)]' : 'h-[clamp(520px,62vh,680px)]'
+              pdfExpanded ? 'h-[min(82vh,900px)]' : studyRowHeight
             } ${activeCell === 'pdf' ? activeCellClass : 'border-slate-800/80'}`}
           >
             {/* Barra superior de la celda */}
@@ -936,7 +938,7 @@ export const P03_NotebookLM: React.FC = () => {
           {/* Fila inferior — Celda combinada a lo ancho: Diapositiva */}
           <section
             {...cellInteractionProps('slide')}
-            className={`flex min-h-[clamp(440px,46vh,600px)] flex-col overflow-hidden rounded-2xl border bg-slate-900/50 ${
+            className={`flex ${studyRowHeight} flex-col overflow-hidden rounded-2xl border bg-slate-900/50 ${
               activeCell === 'slide' ? activeCellClass : 'border-slate-800/80'
             }`}
           >
@@ -953,7 +955,7 @@ export const P03_NotebookLM: React.FC = () => {
               </span>
             </div>
 
-            <div className="px-5 py-6 sm:px-7">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-7">
               <span className="inline-block rounded border border-cyan-800/40 bg-cyan-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
                 {currentSlide.tag}
               </span>
