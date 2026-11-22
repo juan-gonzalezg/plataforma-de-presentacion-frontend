@@ -46,8 +46,18 @@ export const AccessibilityControls: React.FC = () => {
       ? 'bg-red-400'
       : 'bg-amber-400';
 
+  // Atajo directo: alterna entre los dos modos relajantes. Si el usuario está
+  // en Alto Contraste (tema oscuro), el primer clic lo lleva al modo claro.
+  const isLightMode = contrastMode === 'clean-light';
+  const themeToggleLabel = isLightMode
+    ? 'Cambiar a modo oscuro'
+    : 'Cambiar a modo claro';
+  const toggleTheme = () => {
+    setContrastMode(isLightMode ? 'cinema-dark' : 'clean-light');
+  };
+
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-1.5">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-750 border border-slate-700 text-xs text-slate-300 transition-colors"
@@ -56,6 +66,21 @@ export const AccessibilityControls: React.FC = () => {
         <Eye className="w-4 h-4 text-cyan-400" />
         <span className="hidden md:inline">Proyección & Legibilidad</span>
         <span className={`w-2 h-2 rounded-full ml-1 ${statusDot}`} />
+      </button>
+
+      <button
+        type="button"
+        onClick={toggleTheme}
+        title={themeToggleLabel}
+        aria-label={themeToggleLabel}
+        aria-pressed={isLightMode}
+        className="flex items-center justify-center p-2 rounded-lg bg-slate-800/80 hover:bg-slate-750 border border-slate-700 text-slate-300 transition-colors"
+      >
+        {isLightMode ? (
+          <Moon className="w-4 h-4 text-[#778d7a]" />
+        ) : (
+          <Sun className="w-4 h-4 text-[#c9b899]" />
+        )}
       </button>
 
       {isOpen && (
