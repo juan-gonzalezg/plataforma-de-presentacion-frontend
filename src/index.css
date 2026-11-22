@@ -22,6 +22,10 @@
 
     --highlight-bg: rgba(119, 141, 122, 0.28);
     --highlight-border: #778d7a;
+
+    /* Sombras suaves para el neumorphism de controles puntuales. */
+    --soft-shadow-light: rgba(244, 241, 222, 0.09);
+    --soft-shadow-dark: rgba(2, 8, 16, 0.55);
   }
 
   /* Tamaño base real: al aplicarse en <html>, escala todos los rem de
@@ -36,6 +40,43 @@
     font-size: 1rem;
     line-height: 1.6;
     overflow-x: hidden;
+  }
+}
+
+@layer components {
+  /* Neumorphism moderado SOLO en controles pequeños. El borde visible
+     garantiza que se distinga qué es clicable incluso en temas oscuros. */
+  .soft-control {
+    background-color: rgb(var(--slate-800) / 0.85);
+    border: 1px solid rgb(var(--slate-600) / 0.7);
+    box-shadow:
+      inset 2px 2px 3px var(--soft-shadow-light),
+      inset -2px -2px 4px var(--soft-shadow-dark),
+      1px 2px 5px var(--soft-shadow-dark);
+    transition: background-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .soft-control:hover {
+    background-color: rgb(var(--slate-750));
+    box-shadow:
+      inset 1px 1px 2px var(--soft-shadow-light),
+      inset -1px -1px 3px var(--soft-shadow-dark),
+      2px 3px 7px var(--soft-shadow-dark);
+  }
+
+  /* Claymorphism discreto: exclusivo de la insignia de bienvenida de Logos.
+     Nunca se aplica a celdas de estudio ni a bloques de texto. */
+  .clay-badge {
+    background: linear-gradient(
+      145deg,
+      rgb(var(--slate-800) / 0.95),
+      rgb(var(--slate-900) / 0.9)
+    );
+    border: 1px solid rgb(var(--slate-600) / 0.45);
+    box-shadow:
+      inset 3px 3px 6px var(--soft-shadow-light),
+      inset -4px -4px 8px var(--soft-shadow-dark),
+      0 8px 18px var(--soft-shadow-dark);
   }
 }
 
@@ -95,6 +136,10 @@
   --slate-950: 244 241 222; /* crema suave · fondo */
   --highlight-bg: rgba(119, 141, 122, 0.25);
   --highlight-border: #778d7a;
+
+  /* En claro, la sombra clara es casi blanca y la oscura es arena. */
+  --soft-shadow-light: rgba(255, 255, 255, 0.55);
+  --soft-shadow-dark: rgba(90, 74, 52, 0.22);
 }
 
 /* Menos ruido cromático: en ambos modos relajantes el foco y la acción

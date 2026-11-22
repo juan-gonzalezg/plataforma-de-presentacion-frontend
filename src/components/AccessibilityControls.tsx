@@ -60,7 +60,7 @@ export const AccessibilityControls: React.FC = () => {
     <div className="relative flex items-center gap-1.5">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-750 border border-slate-700 text-xs text-slate-300 transition-colors"
+        className="soft-control flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-300"
         title="Opciones de proyección y accesibilidad"
       >
         <Eye className="w-4 h-4 text-cyan-400" />
@@ -74,7 +74,7 @@ export const AccessibilityControls: React.FC = () => {
         title={themeToggleLabel}
         aria-label={themeToggleLabel}
         aria-pressed={isLightMode}
-        className="flex items-center justify-center p-2 rounded-lg bg-slate-800/80 hover:bg-slate-750 border border-slate-700 text-slate-300 transition-colors"
+        className="soft-control flex items-center justify-center p-2 rounded-lg text-slate-300"
       >
         {isLightMode ? (
           <Moon className="w-4 h-4 text-[#778d7a]" />

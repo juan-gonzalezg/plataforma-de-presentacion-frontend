@@ -96,6 +96,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
   const visorAlertGradientId = `logos-visor-alert-${uid}`;
   const visorClipId = `logos-visor-clip-${uid}`;
   const glowFilterId = `logos-glow-${uid}`;
+  const clayFilterId = `logos-clay-${uid}`;
 
   const isAlert = mood === 'sin_senal';
   const led = isAlert ? ALERT : EYE;
@@ -224,11 +225,11 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
               <stop offset="100%" stopColor={led} stopOpacity={0} />
             </radialGradient>
 
-            {/* Carcasa gris clara con volumen */}
+            {/* Carcasa con volumen: crema, arena y acero (acabado arcilla). */}
             <linearGradient id={shellGradientId} x1="0%" y1="0%" x2="30%" y2="100%">
-              <stop offset="0%" stopColor="#E8EDF3" />
-              <stop offset="55%" stopColor="#CBD5E1" />
-              <stop offset="100%" stopColor="#B7C4D4" />
+              <stop offset="0%" stopColor="#F4F1DE" />
+              <stop offset="55%" stopColor="#D6CBB4" />
+              <stop offset="100%" stopColor="#AEBCC9" />
             </linearGradient>
 
             {/* Chaleco azul formal */}
@@ -255,6 +256,24 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
+            </filter>
+
+            {/* Clay suave: sombra externa oscura + brillo interno crema. */}
+            <filter id={clayFilterId} x="-25%" y="-25%" width="150%" height="160%">
+              <feDropShadow
+                dx="0"
+                dy="3"
+                stdDeviation="3.5"
+                floodColor="#0D1B2A"
+                floodOpacity="0.32"
+              />
+              <feDropShadow
+                dx="0"
+                dy="-2"
+                stdDeviation="2.5"
+                floodColor="#F4F1DE"
+                floodOpacity="0.28"
+              />
             </filter>
 
             <clipPath id={visorClipId}>
@@ -364,6 +383,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
               fill={`url(#${vestGradientId})`}
               stroke={INK}
               strokeWidth={4.5}
+              filter={`url(#${clayFilterId})`}
             />
             {/* Camisa blanca en V */}
             <path d="M88 113 L100 140 L112 113 Z" fill="#FFFFFF" />
@@ -422,6 +442,7 @@ export const RobotAvatar: React.FC<RobotAvatarProps> = ({
                 fill={`url(#${shellGradientId})`}
                 stroke={INK}
                 strokeWidth={4.5}
+                filter={`url(#${clayFilterId})`}
               />
               {/* Brillo superior de la carcasa */}
               <path

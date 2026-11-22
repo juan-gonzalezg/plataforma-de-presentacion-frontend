@@ -492,12 +492,15 @@ export const P01_Home: React.FC = () => {
       <main className="flex flex-1 flex-col items-center py-8 sm:py-10">
         {/* El asistente saluda */}
         <div className="mb-6 flex flex-col items-center">
-          <RobotAvatar
-            mood={robotMood}
-            size="hero"
-            speechBubble={ASSISTANT_GREETING}
-            onClick={() => setRobotMood('celebrar', 1500)}
-          />
+          {/* Claymorphism solo aquí: insignia de bienvenida, nunca en celdas. */}
+          <div className="clay-badge rounded-[2.5rem] px-5 py-4 sm:px-8 sm:py-5">
+            <RobotAvatar
+              mood={robotMood}
+              size="hero"
+              speechBubble={ASSISTANT_GREETING}
+              onClick={() => setRobotMood('celebrar', 1500)}
+            />
+          </div>
         </div>
 
         <div className="text-center mb-10 space-y-2">
