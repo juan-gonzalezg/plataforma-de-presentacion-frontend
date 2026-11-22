@@ -39,6 +39,8 @@ export interface TopicsSyncResult {
 interface PresentationStore {
   // Navegación y Vistas
   currentView: AppView;
+  /** Modo de trabajo al que volver al reanudar desde el Home. */
+  lastActiveView: Exclude<AppView, 'home'>;
   setCurrentView: (view: AppView) => void;
 
   // Temas y Diapositivas
@@ -174,7 +176,12 @@ export const usePresentationStore = create<PresentationStore>()(
   persist(
     (set, get) => ({
   currentView: 'home',
-  setCurrentView: (view) => set({ currentView: view }),
+  lastActiveView: 'presentation',
+  setCurrentView: (view) =>
+    set((state) => ({
+      currentView: view,
+      lastActiveView: view === 'home' ? state.lastActiveView : view
+    })),
 
   topics: [],
   selectedTopic: null,
@@ -272,6 +279,8 @@ export const usePresentationStore = create<PresentationStore>()(
           currentSlideIndex: 0,
           // Entrada directa al modo elegido desde la tarjeta del Home.
           currentView: targetView,
+          lastActiveView:
+            targetView === 'notebooklm' ? 'notebooklm' : 'presentation',
           isDrawerOpen: false,
           robotMood: 'idle_atento',
           robotSpeechBubble: targetView === 'notebooklm'
@@ -1073,6 +1082,7 @@ export const usePresentationStore = create<PresentationStore>()(
 
     set({
       currentView: 'home',
+      lastActiveView: 'presentation',
       selectedTopic: null,
       currentSlideIndex: 0,
       isDrawerOpen: false,
@@ -1139,6 +1149,8 @@ export const usePresentationStore = create<PresentationStore>()(
       ...imported,
       chatMessages,
       moduleChats,
+      lastActiveView:
+        imported.currentView === 'notebooklm' ? 'notebooklm' : 'presentation',
       isSessionLogOpen: false,
       isDrawerOpen: false,
       isSpotlightOpen: false,

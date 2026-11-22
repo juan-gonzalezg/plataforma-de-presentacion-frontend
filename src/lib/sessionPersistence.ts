@@ -39,6 +39,8 @@ export const MAX_LATEST_SOURCES = 20;
 
 export interface PersistedSession {
   currentView: AppView;
+  /** Última vista de trabajo real (home no cuenta), para reanudar donde se estaba. */
+  lastActiveView: Exclude<AppView, 'home'>;
   selectedTopic: TopicDetail | null;
   currentSlideIndex: number;
   moduleChats: Record<string, ChatMessage[]>;
@@ -77,6 +79,7 @@ export function persistSessionSnapshot(state: PersistedSession): PersistedSessio
 
   return {
     currentView: state.currentView,
+    lastActiveView: state.lastActiveView,
     selectedTopic: state.selectedTopic,
     currentSlideIndex: state.currentSlideIndex,
     chatMessages: sanitizeMessages(state.chatMessages),
@@ -117,6 +120,14 @@ export function mergeSession<T extends PersistedSession>(
   merged.sessionHistory = merged.sessionHistory ?? [];
   merged.stickyNotes = merged.stickyNotes ?? [];
   merged.latestChatSources = merged.latestChatSources ?? [];
+
+  if (
+    merged.lastActiveView !== 'presentation' &&
+    merged.lastActiveView !== 'notebooklm'
+  ) {
+    merged.lastActiveView =
+      merged.currentView === 'notebooklm' ? 'notebooklm' : 'presentation';
+  }
 
   if (!merged.selectedTopic) {
     merged.currentView = 'home';

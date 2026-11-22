@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import {
   Sparkles,
   BookOpen,
@@ -100,11 +100,16 @@ export const P03_NotebookLM: React.FC = () => {
   // En el Modo de Estudio el PDF es la fuente principal; las notas Markdown
   // siguen disponibles desde un control discreto dentro de la celda.
   const [documentView, setDocumentView] = useState<'notes' | 'pdf'>('pdf');
-  const [activeCell, setActiveCell] = useState<StudyCell>('slide');
+  // El foco inicial es el asistente, no la lámina: al entrar se ve la parte
+  // superior del modo y el teclado no cambia de diapositiva por accidente.
+  const [activeCell, setActiveCell] = useState<StudyCell>('ai');
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [pdfExpanded, setPdfExpanded] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const pdfCellRef = useRef<HTMLElement>(null);
+  const studyRootRef = useRef<HTMLDivElement>(null);
+  /** true en cuanto el usuario interactúa con el scroll; deja de fijar arriba. */
+  const userScrolledRef = useRef(false);
 
   const closeGuide = useCallback(() => {
     setIsGuideOpen(false);
@@ -142,10 +147,59 @@ export const P03_NotebookLM: React.FC = () => {
   useEffect(() => {
     setRightTab('documento');
     setDocumentView('pdf');
-    setActiveCell('slide');
+    setActiveCell('ai');
     setIsGuideOpen(false);
     setPdfExpanded(false);
   }, [selectedTopic?.id]);
+
+  // Al entrar (o cambiar de módulo) empezamos arriba y mantenemos el scroll
+  // fijado mientras llegan las páginas del PDF y el resto de la rejilla.
+  useLayoutEffect(() => {
+    userScrolledRef.current = false;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [selectedTopic?.id]);
+
+  useEffect(() => {
+    const root = studyRootRef.current;
+    if (!root || typeof ResizeObserver === 'undefined') return;
+
+    const pinToTop = () => {
+      if (userScrolledRef.current) return;
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    };
+
+    const observer = new ResizeObserver(pinToTop);
+    observer.observe(root);
+    const frame = window.requestAnimationFrame(pinToTop);
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [selectedTopic?.id]);
+
+  // Detectamos intención real del usuario (rueda/táctil/teclas de scroll), no
+  // eventos `scroll` provocados por el navegador al reajustar el layout.
+  useEffect(() => {
+    const markUserScroll = () => {
+      userScrolledRef.current = true;
+    };
+    const scrollKeys = new Set([
+      'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', ' ', 'Home', 'End'
+    ]);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (scrollKeys.has(event.key)) markUserScroll();
+    };
+
+    window.addEventListener('wheel', markUserScroll, { passive: true });
+    window.addEventListener('touchmove', markUserScroll, { passive: true });
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('wheel', markUserScroll);
+      window.removeEventListener('touchmove', markUserScroll);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
 
   // Si una cita activa un bloque o una página, mostramos el documento
   useEffect(() => {
@@ -378,7 +432,10 @@ export const P03_NotebookLM: React.FC = () => {
   }, [activeCell, nextSlide, prevSlide]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div
+      ref={studyRootRef}
+      className="min-h-screen bg-slate-950 text-slate-100 [overflow-anchor:none]"
+    >
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
         {/* 1. Identidad y barra superior del Modo de Estudio */}
         <header className="relative flex flex-col gap-3 border-b border-slate-800/80 pb-4 lg:flex-row lg:items-center lg:justify-between">

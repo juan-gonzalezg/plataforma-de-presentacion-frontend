@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { WifiOff } from 'lucide-react';
 import { usePresentationStore } from './store/usePresentationStore';
 import { P01_Home } from './components/P01_Home';
@@ -38,6 +38,12 @@ export const App: React.FC = () => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Al cambiar de vista empezamos siempre desde arriba: si veníamos de una
+  // lámina desplazada, el Modo de Estudio no debe heredar ese scroll.
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [currentView]);
 
   // HU-RES-02: los temas y el tamaño de fuente se aplican en <html> para que
   // afecten a toda la interfaz (incluidos body y los rem de Tailwind).

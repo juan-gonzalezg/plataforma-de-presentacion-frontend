@@ -66,6 +66,7 @@ export const P01_Home: React.FC = () => {
     selectedTopic,
     currentSlideIndex,
     setCurrentView,
+    lastActiveView,
     resetStoredSession
   } = usePresentationStore();
 
@@ -529,11 +530,15 @@ export const P01_Home: React.FC = () => {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => setCurrentView('presentation')}
+                onClick={() => setCurrentView(lastActiveView)}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition-colors hover:bg-cyan-400"
               >
-                <Play className="h-3.5 w-3.5" />
-                Reanudar
+                {lastActiveView === 'notebooklm' ? (
+                  <BookOpen className="h-3.5 w-3.5" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                {lastActiveView === 'notebooklm' ? 'Reanudar estudio' : 'Reanudar presentación'}
               </button>
               <button
                 type="button"

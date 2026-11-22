@@ -59,8 +59,7 @@ export const SpotlightModal: React.FC = () => {
         {/* Header con título y botón de cerrar */}
         <div className="px-5 py-3.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span className="font-semibold text-slate-200">{ASSISTANT_NAME} · Asistente Contextual RAG & Web</span>
+            <span className="font-semibold text-slate-200">{ASSISTANT_NAME} · Asistente IA con fuentes oficiales</span>
             <span className="text-slate-500">•</span>
             <span className="text-slate-400">Lámina {currentSlideIndex + 1}: {currentSlide?.title}</span>
           </div>
