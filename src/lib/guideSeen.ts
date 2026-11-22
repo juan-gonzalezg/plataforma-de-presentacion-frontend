@@ -7,7 +7,7 @@
  * visita, sin romper la aplicación.
  */
 
-export type GuideView = 'home' | 'study';
+export type GuideView = 'home' | 'presentation' | 'study';
 
 const GUIDE_SEEN_STORAGE_KEY = 'presentacion-guide-seen';
 

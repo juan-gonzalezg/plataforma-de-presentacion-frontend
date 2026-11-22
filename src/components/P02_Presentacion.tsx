@@ -20,6 +20,8 @@ import { SmartHighlightDrawer } from './SmartHighlightDrawer';
 import { SpotlightModal } from './SpotlightModal';
 import { StickyNotesOverlay } from './StickyNotesOverlay';
 import { AccessibilityControls } from './AccessibilityControls';
+import { SpotlightTour, TourStep } from './SpotlightTour';
+import { hasSeenGuide, markGuideSeen } from '../lib/guideSeen';
 import { RobotPresence } from '../types';
 import {
   ROBOT_PRESENCE_DESCRIPTION,
@@ -28,6 +30,27 @@ import {
   readRobotPresence,
   saveRobotPresence
 } from '../lib/robotPresence';
+
+const PRESENTATION_GUIDE_STEPS: TourStep[] = [
+  {
+    selector: '[data-tour="presentation-toolbar"]',
+    title: 'Herramientas de la sesión',
+    description:
+      'Aquí tienes "Duda al Vuelo" (Q) para preguntar, "Notas Vivas" (N) para abrir el documento, el Modo de Estudio y el robot. La guía siempre se puede reabrir desde el botón "Guía".'
+  },
+  {
+    selector: '[data-tour="presentation-slide"]',
+    title: 'Lámina',
+    description:
+      'La diapositiva se muestra a todo lo ancho. Avanza con las flechas del teclado o con los botones de abajo; la idea clave aparece al final.'
+  },
+  {
+    selector: '[data-tour="presentation-nav"]',
+    title: 'Navegación',
+    description:
+      'Usa las flechas o las miniaturas para saltar a cualquier lámina. El contador muestra la posición y el progreso de la presentación.'
+  }
+];
 
 export const P02_Presentacion: React.FC = () => {
   const {
@@ -152,6 +175,22 @@ export const P02_Presentacion: React.FC = () => {
     return () => window.removeEventListener('keydown', handleRobotKeyDown);
   }, [cycleRobotPresence]);
 
+  // Mini-guía de la presentación: aparece una sola vez y se reabre desde "Guía".
+  const [isGuideOpen, setIsGuideOpen] = React.useState(false);
+
+  const closeGuide = React.useCallback(() => {
+    setIsGuideOpen(false);
+    markGuideSeen('presentation');
+  }, []);
+
+  React.useEffect(() => {
+    if (hasSeenGuide('presentation')) return;
+    const timer = window.setTimeout(() => {
+      if (!hasSeenGuide('presentation')) setIsGuideOpen(true);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const isDiscreteRobot = robotPresence === 'discreto';
 
   if (!selectedTopic) {
@@ -203,7 +242,7 @@ export const P02_Presentacion: React.FC = () => {
         </div>
 
         {/* Botones de Acción Rápida */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div data-tour="presentation-toolbar" className="flex items-center gap-2 sm:gap-3">
           {/* Botón Spotlight Q */}
           <button
             onClick={toggleSpotlight}
@@ -230,14 +269,14 @@ export const P02_Presentacion: React.FC = () => {
             <kbd className="font-mono text-[10px] px-1 py-0.5 rounded bg-slate-900/60 border border-slate-700">N</kbd>
           </button>
 
-          {/* Botón Modo NotebookLM */}
+          {/* Botón Modo de Estudio (mismo nombre que la vista destino) */}
           <button
             onClick={() => setCurrentView('notebooklm')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 text-xs font-medium transition-all"
-            title="Ir al modo consulta extendida NotebookLM"
+            title="Ir al Modo de Estudio: asistente, documento y lámina"
           >
             <MessageSquareText className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Modo NotebookLM</span>
+            <span className="hidden md:inline">Modo de Estudio</span>
           </button>
 
           {/* Presencia del robot en la exposición (tecla R) */}
@@ -272,12 +311,22 @@ export const P02_Presentacion: React.FC = () => {
           </button>
 
           <AccessibilityControls />
+          <button
+            type="button"
+            onClick={() => setIsGuideOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/70 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
+            title="Guía rápida de la presentación"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Guía</span>
+          </button>
         </div>
       </header>
 
       {/* Escenario Principal Dinámico (HU-PRS-02: 90% enfocado vs 65% con drawer) */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-8 relative overflow-hidden">
-        <div 
+        <div
+          data-tour="presentation-slide"
           className={`stage-focus-transition h-full max-h-[750px] w-full bg-slate-900/90 border border-slate-800/80 rounded-3xl p-6 sm:p-10 shadow-2xl flex flex-col justify-between relative overflow-hidden backdrop-blur-md ${
             isDrawerOpen ? 'lg:w-[65%] lg:mr-[460px]' : 'w-[92%] max-w-6xl mx-auto'
           }`}
@@ -373,7 +422,7 @@ export const P02_Presentacion: React.FC = () => {
       </main>
 
       {/* Barra Inferior de Miniaturas y Línea de Tiempo (HU-PRS-01) */}
-      <footer className="h-20 px-6 border-t border-slate-800/80 bg-slate-900/80 backdrop-blur-md flex items-center justify-between z-20">
+      <footer data-tour="presentation-nav" className="h-20 px-6 border-t border-slate-800/80 bg-slate-900/80 backdrop-blur-md flex items-center justify-between z-20">
         {/* Controles de Navegación Izquierda */}
         <div className="flex items-center gap-3">
           <button
@@ -434,6 +483,12 @@ export const P02_Presentacion: React.FC = () => {
 
       {/* Tarjetas Adhesivas Flotantes Web/RAG (HU-AIQ-02) */}
       <StickyNotesOverlay />
+
+      <SpotlightTour
+        steps={PRESENTATION_GUIDE_STEPS}
+        open={isGuideOpen}
+        onClose={closeGuide}
+      />
     </div>
   );
 };

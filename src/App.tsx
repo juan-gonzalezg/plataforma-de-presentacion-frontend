@@ -84,6 +84,10 @@ export const App: React.FC = () => {
       // Si el usuario está escribiendo dentro de un input, no interferir con las flechas o letras
       if (isInputFocused) return;
 
+      // Con una guía abierta ningún atajo debe mover la presentación: el
+      // recorrido se controla con los botones de la tarjeta (o Esc para salir).
+      if (document.documentElement.classList.contains('tour-active')) return;
+
       // Navegación en modo presentación
       if (currentView === 'presentation') {
         if (e.key === 'ArrowRight' || e.key === ' ') {

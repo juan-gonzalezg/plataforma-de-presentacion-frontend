@@ -45,7 +45,7 @@ export const SpotlightModal: React.FC = () => {
     currentSlide.title,
     `¿Qué es ${currentSlide.headline.split(' ')[0]}?`,
     "¿Cuál es el patrón recomendado?"
-  ] : ["Circuit Breaker", "Zero Trust", "RAG vs Fine-Tuning"];
+  ] : ["¿De qué trata este módulo?", "¿Qué fuentes se usan?", "Resume lo más importante"];
 
   return (
     <div 
@@ -79,21 +79,24 @@ export const SpotlightModal: React.FC = () => {
 
         {/* Formulario de Pregunta */}
         <form onSubmit={handleSubmit} className="p-5">
-          <div className="relative flex items-center">
-            <Search className="w-6 h-6 text-cyan-400 absolute left-4 pointer-events-none" />
+          {/* La barra es un flex real: el icono y el botón son hermanos del
+              input, así no pueden quedar encima del texto al cambiar el
+              tamaño de fuente accesible. */}
+          <div className="flex items-center gap-3 rounded-xl border-2 border-slate-700 bg-slate-950 transition-all focus-within:border-cyan-400 focus-within:ring-4 focus-within:ring-cyan-500/20">
+            <Search className="ml-3 h-6 w-6 shrink-0 text-cyan-400" aria-hidden="true" />
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value.slice(0, 150))}
-              placeholder="¿Tienes una duda? Escribe aquí... (ej. ¿Cómo funciona Circuit Breaker?)"
+              placeholder="¿Tienes una duda? Escribe aquí..."
               maxLength={150}
               disabled={isSearching}
-              className="w-full bg-slate-950 border-2 border-slate-700 focus:border-cyan-400 rounded-xl pl-12 pr-28 py-4 text-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-cyan-500/20 transition-all font-sans"
+              className="min-w-0 flex-1 bg-transparent py-4 text-lg text-slate-100 placeholder-slate-500 focus:outline-none font-sans"
             />
 
             {/* Contador y botón de envío */}
-            <div className="absolute right-3 flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 pr-3">
               <span className={`text-xs font-mono ${query.length >= 140 ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>
                 {query.length}/150
               </span>
