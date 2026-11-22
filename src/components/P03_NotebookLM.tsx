@@ -429,17 +429,17 @@ export const P03_NotebookLM: React.FC = () => {
         </header>
 
       {/* 2. Rejilla principal: mismo ancho y alineación que el Home */}
-      <main className="flex-1 space-y-5 py-5">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <main className="flex-1 space-y-6 pt-5 pb-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Fila superior — Celda izquierda: Asistente de Estudio (IA) */}
           <section
             {...cellInteractionProps('ai')}
-            className={`flex h-[520px] min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-900/60 lg:h-[560px] ${
+            className={`flex h-[clamp(520px,62vh,680px)] min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-900/60 ${
               activeCell === 'ai' ? activeCellClass : 'border-slate-800/80'
             }`}
           >
-          {/* Cabecera compacta de la celda */}
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/50 px-4 py-2.5">
+            {/* Cabecera compacta de la celda */}
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/50 px-4 py-2.5">
             <div className="flex min-w-0 items-center gap-2">
               <Sparkles className="h-4 w-4 shrink-0 text-cyan-400" />
               <h2 className="truncate text-sm font-bold text-slate-200">Asistente de Estudio</h2>
@@ -661,7 +661,7 @@ export const P03_NotebookLM: React.FC = () => {
             {...cellInteractionProps('pdf')}
             ref={pdfCellRef}
             className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-950/70 ${
-              pdfExpanded ? 'h-[820px]' : 'h-[520px] lg:h-[560px]'
+              pdfExpanded ? 'h-[min(82vh,900px)]' : 'h-[clamp(520px,62vh,680px)]'
             } ${activeCell === 'pdf' ? activeCellClass : 'border-slate-800/80'}`}
           >
             {/* Barra superior de la celda */}
@@ -670,9 +670,13 @@ export const P03_NotebookLM: React.FC = () => {
                 <FileText className="h-4 w-4 shrink-0 text-cyan-400" />
                 <h2 className="truncate text-sm font-bold text-slate-200">Documento PDF</h2>
                 {activeChip('pdf')}
-                {activeHighlightPage && (
+                {activeHighlightPage ? (
                   <span className="shrink-0 rounded border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
-                    p.{activeHighlightPage}
+                    Resaltado p.{activeHighlightPage}
+                  </span>
+                ) : (
+                  <span className="shrink-0 font-mono text-[10px] text-slate-500">
+                    Sin resaltado
                   </span>
                 )}
               </div>
@@ -932,7 +936,7 @@ export const P03_NotebookLM: React.FC = () => {
           {/* Fila inferior — Celda combinada a lo ancho: Diapositiva */}
           <section
             {...cellInteractionProps('slide')}
-            className={`flex min-h-[420px] flex-col overflow-hidden rounded-2xl border bg-slate-900/50 ${
+            className={`flex min-h-[clamp(440px,46vh,600px)] flex-col overflow-hidden rounded-2xl border bg-slate-900/50 ${
               activeCell === 'slide' ? activeCellClass : 'border-slate-800/80'
             }`}
           >
