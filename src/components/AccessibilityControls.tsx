@@ -66,7 +66,7 @@ export const AccessibilityControls: React.FC = () => {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <span className="font-semibold text-slate-100 flex items-center gap-1.5">
-              <Monitor className="w-4 h-4 text-cyan-400" /> Modo Proyector (WCAG AA)
+              <Monitor className="w-4 h-4 text-cyan-400" /> Proyección & Legibilidad
             </span>
             <button
               onClick={() => setIsOpen(false)}
@@ -83,20 +83,20 @@ export const AccessibilityControls: React.FC = () => {
               <button
                 onClick={() => setContrastMode('cinema-dark')}
                 className={`p-2 rounded-lg border text-center transition-all ${
-                  contrastMode === 'cinema-dark' 
-                    ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 font-bold' 
+                  contrastMode === 'cinema-dark'
+                    ? 'bg-[#778d7a]/20 border-[#778d7a] text-slate-100 font-bold'
                     : 'bg-slate-800/60 border-slate-700 hover:bg-slate-800 text-slate-300'
                 }`}
               >
-                <Moon className="w-3.5 h-3.5 mx-auto mb-1 text-cyan-400" />
-                <span>Cinema Dark</span>
+                <Moon className="w-3.5 h-3.5 mx-auto mb-1 text-[#778d7a]" />
+                <span>Oscuro relajante</span>
               </button>
 
               <button
                 onClick={() => setContrastMode('projector-high-contrast')}
                 className={`p-2 rounded-lg border text-center transition-all ${
-                  contrastMode === 'projector-high-contrast' 
-                    ? 'bg-amber-500/20 border-amber-400 text-amber-200 font-bold' 
+                  contrastMode === 'projector-high-contrast'
+                    ? 'bg-amber-500/20 border-amber-400 text-amber-200 font-bold'
                     : 'bg-slate-800/60 border-slate-700 hover:bg-slate-800 text-slate-300'
                 }`}
               >
@@ -107,15 +107,18 @@ export const AccessibilityControls: React.FC = () => {
               <button
                 onClick={() => setContrastMode('clean-light')}
                 className={`p-2 rounded-lg border text-center transition-all ${
-                  contrastMode === 'clean-light' 
-                    ? 'bg-blue-500/20 border-blue-400 text-blue-200 font-bold' 
+                  contrastMode === 'clean-light'
+                    ? 'bg-[#778d7a]/20 border-[#778d7a] text-slate-100 font-bold'
                     : 'bg-slate-800/60 border-slate-700 hover:bg-slate-800 text-slate-300'
                 }`}
               >
-                <Sun className="w-3.5 h-3.5 mx-auto mb-1 text-amber-300" />
-                <span>Luz Natural</span>
+                <Sun className="w-3.5 h-3.5 mx-auto mb-1 text-[#c9b899]" />
+                <span>Claro relajante</span>
               </button>
             </div>
+            <p className="mt-2 text-[10px] leading-snug text-slate-400">
+              El verde salvia marca el foco y la acción principal; el azul acero y la arena son de apoyo.
+            </p>
           </div>
 
           {/* Selector de Tamaño de Fuente */}

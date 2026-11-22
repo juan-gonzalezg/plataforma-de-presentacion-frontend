@@ -4,24 +4,24 @@
 
 @layer base {
   :root {
-    /* Paleta slate como tripletes RGB: Tailwind la consume con
-       rgb(var(--slate-N) / <alpha-value>) y así respeta los modificadores
-       de opacidad (bg-slate-900/80, border-slate-700/60, etc.). */
-    --slate-100: 241 245 249;
-    --slate-200: 226 232 240;
-    --slate-300: 203 213 225;
-    --slate-400: 148 163 184;
-    --slate-500: 124 140 163;
-    --slate-600: 71 85 105;
-    --slate-700: 51 65 85;
-    --slate-750: 30 41 59;
-    --slate-800: 30 41 59;
-    --slate-850: 19 28 46;
-    --slate-900: 15 23 42;
-    --slate-950: 6 10 18;
+    /* Paleta oscura relajante como tripletes RGB: Tailwind la consume con
+       rgb(var(--slate-N) / <alpha-value>) y respeta los modificadores de
+       opacidad (bg-slate-900/80, border-slate-700/60, etc.). */
+    --slate-100: 244 241 222; /* crema suave · texto principal */
+    --slate-200: 226 220 200;
+    --slate-300: 212 196 168; /* arena apagada */
+    --slate-400: 140 158 176;
+    --slate-500: 110 130 152;
+    --slate-600: 65 90 119; /* azul acero */
+    --slate-700: 65 90 119;
+    --slate-750: 40 56 78;
+    --slate-800: 35 51 74;
+    --slate-850: 22 33 51;
+    --slate-900: 27 38 59; /* azul pizarra · celdas */
+    --slate-950: 13 27 42; /* azul noche · fondo */
 
-    --highlight-bg: rgba(250, 204, 21, 0.25);
-    --highlight-border: #facc15;
+    --highlight-bg: rgba(119, 141, 122, 0.28);
+    --highlight-border: #778d7a;
   }
 
   /* Tamaño base real: al aplicarse en <html>, escala todos los rem de
@@ -41,22 +41,23 @@
 
 /* Modos de contraste para proyección (HU-RES-02).
    Las clases se aplican en <html> desde App.tsx. */
+/* Oscuro relajante: azul noche + pizarra, crema y verde salvia. */
 .theme-cinema-dark {
   color-scheme: dark;
-  --slate-100: 241 245 249;
-  --slate-200: 226 232 240;
-  --slate-300: 203 213 225;
-  --slate-400: 148 163 184;
-  --slate-500: 124 140 163;
-  --slate-600: 71 85 105;
-  --slate-700: 51 65 85;
-  --slate-750: 30 41 59;
-  --slate-800: 30 41 59;
-  --slate-850: 19 28 46;
-  --slate-900: 15 23 42;
-  --slate-950: 6 10 18;
-  --highlight-bg: rgba(0, 240, 255, 0.2);
-  --highlight-border: #00f0ff;
+  --slate-100: 244 241 222;
+  --slate-200: 226 220 200;
+  --slate-300: 212 196 168;
+  --slate-400: 140 158 176;
+  --slate-500: 110 130 152;
+  --slate-600: 65 90 119;
+  --slate-700: 65 90 119;
+  --slate-750: 40 56 78;
+  --slate-800: 35 51 74;
+  --slate-850: 22 33 51;
+  --slate-900: 27 38 59;
+  --slate-950: 13 27 42;
+  --highlight-bg: rgba(119, 141, 122, 0.28);
+  --highlight-border: #778d7a;
 }
 
 .theme-projector-high-contrast {
@@ -77,80 +78,83 @@
   --highlight-border: #facc15;
 }
 
+/* Claro relajante: crema en lugar de blanco, arena en las celdas. */
 .theme-clean-light {
   color-scheme: light;
-  /* Invertimos la escala de luminancia: slate-100 pasa a ser texto oscuro
-     y slate-950 fondo claro. Los grises intermedios mantienen contraste AA. */
-  --slate-100: 15 23 42;
-  --slate-200: 30 41 59;
-  --slate-300: 51 65 85;
-  --slate-400: 71 85 105;
-  --slate-500: 100 116 139;
-  --slate-600: 100 116 139;
-  --slate-700: 203 213 225;
-  --slate-750: 226 232 240;
-  --slate-800: 226 232 240;
-  --slate-850: 241 245 249;
-  --slate-900: 255 255 255;
-  --slate-950: 248 250 252;
-  --highlight-bg: rgba(254, 240, 138, 0.6);
-  --highlight-border: #ca8a04;
+  --slate-100: 13 27 42; /* azul noche · texto principal */
+  --slate-200: 27 38 59; /* azul pizarra */
+  --slate-300: 65 90 119; /* azul acero · texto secundario */
+  --slate-400: 90 110 134;
+  --slate-500: 110 128 150;
+  --slate-600: 150 132 110;
+  --slate-700: 180 162 134;
+  --slate-750: 202 188 160;
+  --slate-800: 196 178 148;
+  --slate-850: 224 213 190;
+  --slate-900: 212 196 168; /* arena cálida · celdas */
+  --slate-950: 244 241 222; /* crema suave · fondo */
+  --highlight-bg: rgba(119, 141, 122, 0.25);
+  --highlight-border: #778d7a;
 }
 
-/* Ajustes de acento para que el tema claro también cumpla AA: los tonos
-   pastel de los temas oscuros no tienen contraste suficiente sobre blanco. */
+/* Menos ruido cromático: en ambos modos relajantes el foco y la acción
+   principal son verde salvia; el apoyo es azul acero y la alerta, arena. */
+.theme-cinema-dark .text-cyan-400,
+.theme-cinema-dark .text-cyan-300,
+.theme-cinema-dark .text-cyan-200,
 .theme-clean-light .text-cyan-400,
-.theme-clean-light .text-cyan-300 {
-  color: #0e7490;
-}
-
+.theme-clean-light .text-cyan-300,
 .theme-clean-light .text-cyan-200 {
-  color: #155e75;
+  color: #778d7a;
 }
 
-.theme-clean-light .text-emerald-400,
-.theme-clean-light .text-emerald-300 {
-  color: #047857;
+.theme-cinema-dark .bg-cyan-500,
+.theme-cinema-dark .bg-cyan-400,
+.theme-clean-light .bg-cyan-500,
+.theme-clean-light .bg-cyan-400 {
+  background-color: #778d7a;
 }
 
-.theme-clean-light .text-emerald-200 {
-  color: #065f46;
+.theme-cinema-dark .hover\:bg-cyan-400:hover,
+.theme-clean-light .hover\:bg-cyan-400:hover {
+  background-color: #6b806e;
 }
 
-.theme-clean-light .text-amber-400,
-.theme-clean-light .text-amber-300 {
-  color: #b45309;
+.theme-cinema-dark .border-cyan-500,
+.theme-cinema-dark .border-cyan-400,
+.theme-clean-light .border-cyan-500,
+.theme-clean-light .border-cyan-400 {
+  border-color: #778d7a;
 }
 
-.theme-clean-light .text-amber-200 {
-  color: #92400e;
-}
-
+.theme-cinema-dark .text-purple-400,
+.theme-cinema-dark .text-purple-300,
 .theme-clean-light .text-purple-400,
 .theme-clean-light .text-purple-300 {
-  color: #6d28d9;
+  color: #415a77;
 }
 
-.theme-clean-light .text-purple-200 {
-  color: #5b21b6;
+.theme-cinema-dark .text-amber-400,
+.theme-cinema-dark .text-amber-300,
+.theme-clean-light .text-amber-400,
+.theme-clean-light .text-amber-300 {
+  color: #c9b899;
 }
 
-.theme-clean-light .text-blue-200 {
-  color: #1e40af;
-}
-
+.theme-cinema-dark .text-red-400,
+.theme-cinema-dark .text-red-300,
 .theme-clean-light .text-red-400,
 .theme-clean-light .text-red-300 {
-  color: #b91c1c;
+  color: #b45c5c;
 }
 
-/* Los botones con acento brillante usan text-slate-950 como texto oscuro. */
+/* En claro, los textos sobre acentos siguen siendo azul noche. */
 .theme-clean-light .text-slate-950 {
-  color: #0f172a;
+  color: #0d1b2a;
 }
 
 .theme-clean-light .hover\:text-white:hover {
-  color: #0f172a;
+  color: #0d1b2a;
 }
 
 /* Tamaños de fuente accesibles: se aplican en <html>. */
