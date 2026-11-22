@@ -29,6 +29,13 @@ import {
   WebResult
 } from '../types';
 
+/** Resultado de una sincronización con Supabase Storage (HU-HOM-01). */
+export interface TopicsSyncResult {
+  ok: boolean;
+  message: string;
+  count: number;
+}
+
 interface PresentationStore {
   // Navegación y Vistas
   currentView: AppView;
@@ -75,8 +82,8 @@ interface PresentationStore {
 
   // Acciones
   loadTopics: () => Promise<void>;
-  refreshTopics: () => Promise<void>;
-  selectTopic: (topicId: string) => Promise<void>;
+  refreshTopics: () => Promise<TopicsSyncResult>;
+  selectTopic: (topicId: string, targetView?: AppView) => Promise<void>;
   nextSlide: () => void;
   prevSlide: () => void;
   goToSlide: (index: number) => void;
@@ -219,18 +226,35 @@ export const usePresentationStore = create<PresentationStore>()(
     set({ isLoadingTopics: true });
     try {
       const res = await fetch(apiUrl('/api/topics/refresh'), { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        set({ topics: data.topics || [] });
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: `No se pudo sincronizar (servidor ${res.status}). Se muestran los módulos disponibles en este navegador.`,
+          count: get().topics.length
+        };
       }
+
+      const data = await res.json();
+      const topics: TopicMetadata[] = data.topics || [];
+      set({ topics });
+      return {
+        ok: true,
+        message: `Sincronización completada: ${topics.length} módulo(s) disponibles.`,
+        count: topics.length
+      };
     } catch (err) {
       console.error('Error refrescando temas desde Supabase:', err);
+      return {
+        ok: false,
+        message: 'No se pudo conectar con Supabase. Se muestran los módulos disponibles en este navegador.',
+        count: get().topics.length
+      };
     } finally {
       set({ isLoadingTopics: false });
     }
   },
 
-  selectTopic: async (topicId: string) => {
+  selectTopic: async (topicId: string, targetView: AppView = 'presentation') => {
     set({ isLoadingTopicDetail: true, robotMood: 'buscar_antena', robotSpeechBubble: 'Precargando diapositivas y base RAG...' });
     try {
       const res = await fetch(apiUrl(`/api/topics/${topicId}`));
@@ -246,10 +270,13 @@ export const usePresentationStore = create<PresentationStore>()(
         set({ 
           selectedTopic: topic,
           currentSlideIndex: 0,
-          currentView: 'presentation',
+          // Entrada directa al modo elegido desde la tarjeta del Home.
+          currentView: targetView,
           isDrawerOpen: false,
           robotMood: 'idle_atento',
-          robotSpeechBubble: `Módulo cargado. Usa las flechas para navegar o 'N' para ver notas.`,
+          robotSpeechBubble: targetView === 'notebooklm'
+            ? 'Módulo listo para estudiar. Pregúntame lo que necesites.'
+            : `Módulo cargado. Usa las flechas para navegar o 'N' para ver notas.`,
           latestChatSources: [],
           // Cada módulo arranca sin foco heredado del anterior
           activeHighlightBlockId: null,

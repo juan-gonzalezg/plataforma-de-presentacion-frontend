@@ -14,7 +14,11 @@ import {
   ExternalLink,
   Download,
   Trash2,
-  Save
+  HelpCircle,
+  Maximize2,
+  Minimize2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
@@ -33,6 +37,7 @@ import { ChatSource, HighlightBbox } from '../types';
 import { ASSISTANT_NAME } from '../lib/brand';
 
 type RightTab = 'documento' | 'fragmentos' | 'web';
+type StudyCell = 'ai' | 'pdf' | 'slide';
 
 interface FocusTarget {
   id: string;
@@ -48,6 +53,8 @@ export const P03_NotebookLM: React.FC = () => {
     selectedTopic,
     currentSlideIndex,
     goToSlide,
+    nextSlide,
+    prevSlide,
     setCurrentView,
     chatMessages,
     sendChatMessage,
@@ -67,19 +74,26 @@ export const P03_NotebookLM: React.FC = () => {
 
   const [inputMessage, setInputMessage] = useState('');
   const [rightTab, setRightTab] = useState<RightTab>('documento');
-  // Permite alternar entre las notas Markdown y el PDF original del módulo.
-  // Así también se puede validar el visor PDF (HU-NOT-02) en cualquier tema.
-  const [documentView, setDocumentView] = useState<'notes' | 'pdf'>('notes');
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  // En el Modo de Estudio el PDF es la fuente principal; las notas Markdown
+  // siguen disponibles desde un control discreto dentro de la celda.
+  const [documentView, setDocumentView] = useState<'notes' | 'pdf'>('pdf');
+  const [activeCell, setActiveCell] = useState<StudyCell>('slide');
+  const [showGuide, setShowGuide] = useState(false);
+  const [pdfExpanded, setPdfExpanded] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const pdfCellRef = useRef<HTMLElement>(null);
 
   // Estado del proveedor LLM (para indicar si hay generación real o modo extractivo)
   useEffect(() => {
     loadLlmStatus();
   }, [loadLlmStatus]);
 
-  // Auto-scroll del chat
+  // Auto-scroll SOLO del área de conversación: nunca desplaza la página
+  // mientras el usuario está leyendo la diapositiva o el PDF.
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = chatScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [chatMessages, isSearching]);
 
   // Reconstrucción del texto base (módulos con notas Markdown)
@@ -90,7 +104,10 @@ export const P03_NotebookLM: React.FC = () => {
   // Al cambiar de módulo volvemos a la pestaña del documento
   useEffect(() => {
     setRightTab('documento');
-    setDocumentView('notes');
+    setDocumentView('pdf');
+    setActiveCell('slide');
+    setShowGuide(false);
+    setPdfExpanded(false);
   }, [selectedTopic?.id]);
 
   // Si una cita activa un bloque o una página, mostramos el documento
@@ -101,6 +118,8 @@ export const P03_NotebookLM: React.FC = () => {
     // Una cita con página/bbox (HU-NOT-02) solo se puede resaltar en el PDF.
     if (activeHighlightPage) {
       setDocumentView('pdf');
+    } else if (activeHighlightBlockId) {
+      setDocumentView('notes');
     }
   }, [activeHighlightBlockId, activeHighlightPage]);
 
@@ -120,6 +139,16 @@ export const P03_NotebookLM: React.FC = () => {
   const currentSlide = selectedTopic.slides[currentSlideIndex];
   const hasMarkdownNotes = notesBlocks.length > 0;
   const hasPdf = Boolean(selectedTopic.files?.pdf);
+  const showPdf = hasPdf && documentView === 'pdf';
+
+  // Indicador muy sutil de la celda que recibe el teclado.
+  const activeCellClass = 'border-cyan-500/45 ring-1 ring-cyan-500/10';
+  const activeChip = (cell: StudyCell) =>
+    activeCell === cell ? (
+      <span className="shrink-0 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+        Activa
+      </span>
+    ) : null;
 
   // Exportación local (sin backend) para que siga funcionando sin conexión.
   const exportBaseName = `${slugify(selectedTopic.title)}-${fileStamp()}`;
@@ -220,10 +249,12 @@ export const P03_NotebookLM: React.FC = () => {
     setRobotMood('apuntar_puntero', 1800);
 
     if (source.pagina) {
+      setDocumentView('pdf');
       setActiveHighlightPdfTarget(source.pagina, source.bbox ?? null);
       return;
     }
 
+    setDocumentView('notes');
     setActiveHighlightBlockId(source.id);
     setTimeout(() => {
       document
@@ -232,61 +263,203 @@ export const P03_NotebookLM: React.FC = () => {
     }, 160);
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitMessage = async () => {
     if (!inputMessage.trim() || isSearching) return;
     const msg = inputMessage;
     setInputMessage('');
     await sendChatMessage(msg);
   };
 
+  const handleSend = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submitMessage();
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter envía; Shift + Enter agrega salto de línea. Las flechas se
+    // reservan para mover el cursor dentro del campo de escritura.
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void submitMessage();
+    }
+  };
+
+  // Marca visualmente la celda activa y evita que una tecla dispare una acción
+  // en la zona equivocada.
+  const cellInteractionProps = (cell: StudyCell) => ({
+    onPointerDown: () => setActiveCell(cell),
+    onFocusCapture: () => setActiveCell(cell),
+    onWheelCapture: () => setActiveCell(cell)
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName.toLowerCase();
+      const isTyping =
+        tag === 'input' || tag === 'textarea' || Boolean(target?.isContentEditable);
+
+      // Regla de seguridad: si el usuario escribe, el teclado es suyo.
+      if (isTyping) return;
+
+      if (activeCell === 'slide') {
+        if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          nextSlide();
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          prevSlide();
+        }
+        return;
+      }
+
+      if (activeCell === 'pdf') {
+        const scrollsDown =
+          e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ';
+        const scrollsUp = e.key === 'ArrowUp' || e.key === 'PageUp';
+        if (!scrollsDown && !scrollsUp) return;
+
+        const scroller = pdfCellRef.current?.querySelector<HTMLElement>(
+          '[data-pdf-scroll]'
+        );
+        if (!scroller) return;
+        e.preventDefault();
+        const distance = e.key === 'PageDown' || e.key === 'PageUp'
+          ? scroller.clientHeight * 0.9
+          : 120;
+        scroller.scrollBy({ top: scrollsDown ? distance : -distance, behavior: 'smooth' });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeCell, nextSlide, prevSlide]);
+
   return (
-    <div className="h-screen w-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden select-none">
-      {/* Barra Superior NotebookLM */}
-      <header className="h-14 px-6 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md flex items-center justify-between z-20 shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCurrentView('presentation')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-medium transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 text-cyan-400" />
-            <span>Volver a Presentación</span>
-          </button>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        {/* 1. Identidad y barra superior del Modo de Estudio */}
+        <header className="relative flex flex-col gap-3 border-b border-slate-800/80 pb-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentView('home')}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+            >
+              <ArrowLeft className="h-4 w-4 text-cyan-400" />
+              Inicio
+            </button>
 
-          <div className="h-4 w-[1px] bg-slate-800" />
+            <div className="hidden h-4 w-[1px] bg-slate-800 sm:block" />
 
-          <div className="flex items-center gap-2">
-            <span className="p-1 rounded bg-purple-500/20 text-purple-300 font-mono text-[11px] uppercase font-bold tracking-wider">
-              Modo NotebookLM
+            {/* Logos discreto: acompaña sin globos que tapen contenido. */}
+            <span
+              className="hidden h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-purple-500/30 bg-purple-500/10 sm:flex"
+              title={`${ASSISTANT_NAME} te acompaña en silencio durante el estudio`}
+            >
+              <RobotAvatar mood={robotMood} size="sm" quiet className="scale-50" />
             </span>
-            <span className="text-xs font-bold text-slate-200 truncate max-w-sm">
-              {selectedTopic.title}
-            </span>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-4">
-          <span
-            className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-medium text-emerald-300"
-            title="La conversación, la bitácora, el módulo y tus preferencias se guardan en este navegador."
-          >
-            <Save className="h-3 w-3" /> Autoguardado
-          </span>
-          <AccessibilityControls />
-        </div>
-      </header>
-
-      {/* Cuerpo Principal de Pantalla Dividida (Wireframe Vista 2) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
-        {/* COLUMNA IZQUIERDA: Hilo de Chat con la IA (7 columnas) */}
-        <section className="lg:col-span-7 flex flex-col h-full border-r border-slate-800/80 bg-slate-900/50">
-          {/* Header del Chat */}
-          <div className="p-4 border-b border-slate-800 bg-slate-950/60 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
-              <h2 className="text-sm font-bold text-slate-200">Conversación Contextual con IA</h2>
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-bold text-slate-100 sm:text-base">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-300">
+                  Modo de Estudio
+                </span>
+                <span className="mx-1.5 text-slate-600">·</span>
+                {selectedTopic.title}
+              </h1>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <button
+              type="button"
+              onClick={() => setCurrentView('presentation')}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+            >
+              <Layers className="h-3.5 w-3.5 text-cyan-400" />
+              Presentación
+            </button>
+            <AccessibilityControls />
+            <button
+              type="button"
+              onClick={() => setShowGuide((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
+              title="Guía rápida del Modo de Estudio"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              Guía
+            </button>
+          </div>
+
+          {showGuide && (
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
+              className="absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-slate-700 bg-slate-900/95 p-4 text-xs shadow-2xl backdrop-blur-xl"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <p className="flex items-center gap-1.5 font-bold text-slate-100">
+                  <HelpCircle className="h-3.5 w-3.5 text-cyan-400" /> Guía rápida
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowGuide(false)}
+                  className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
+                  title="Cerrar guía"
+                >
+                  ×
+                </button>
+              </div>
+              <ul className="space-y-2 leading-relaxed text-slate-400">
+                <li>
+                  <span className="font-semibold text-cyan-300">Asistente:</span> escribe tu pregunta. Enter envía y Shift + Enter agrega una línea.
+                </li>
+                <li>
+                  <span className="font-semibold text-cyan-300">PDF:</span> usa ↑ / ↓ o PageUp / PageDown para desplazarte; los botones cambian de página.
+                </li>
+                <li>
+                  <span className="font-semibold text-cyan-300">Diapositiva:</span> usa ← / → para avanzar o retroceder.
+                </li>
+              </ul>
+              <p className="mt-3 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
+                Haz clic en una celda para activarla. Las teclas nunca actuarán mientras escribes.
+              </p>
+            </div>
+          )}
+        </header>
+
+      {/* 2. Rejilla principal: mismo ancho y alineación que el Home */}
+      <main className="flex-1 space-y-5 py-5">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {/* Fila superior — Celda izquierda: Asistente de Estudio (IA) */}
+          <section
+            {...cellInteractionProps('ai')}
+            className={`flex h-[520px] min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-900/60 lg:h-[560px] ${
+              activeCell === 'ai' ? activeCellClass : 'border-slate-800/80'
+            }`}
+          >
+          {/* Cabecera compacta de la celda */}
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/50 px-4 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-cyan-400" />
+              <h2 className="truncate text-sm font-bold text-slate-200">Asistente de Estudio</h2>
+              {activeChip('ai')}
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${
+                  llmStatus?.configured
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                    : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+                }`}
+                title={
+                  llmStatus?.configured
+                    ? `Generación con ${llmStatus.provider} · ${llmStatus.model}`
+                    : 'Configura LLM_API_KEY / LLM_MODEL en el backend para activar la generación'
+                }
+              >
+                <Cpu className="h-3.5 w-3.5" />
+              </span>
               <button
                 type="button"
                 onClick={handleExportChat}
@@ -294,7 +467,7 @@ export const P03_NotebookLM: React.FC = () => {
                 title="Descargar esta conversación en Markdown"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Exportar chat</span>
+                <span className="hidden sm:inline">Exportar</span>
               </button>
               <button
                 type="button"
@@ -304,33 +477,13 @@ export const P03_NotebookLM: React.FC = () => {
                 title="Vaciar la conversación de este módulo"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span className="hidden md:inline">Limpiar</span>
+                <span className="hidden sm:inline">Limpiar</span>
               </button>
-              <span
-                className={`text-[10px] font-mono px-2 py-1 rounded-full border flex items-center gap-1 ${
-                  llmStatus?.configured
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                }`}
-                title={
-                  llmStatus?.configured
-                    ? `Generación con ${llmStatus.provider} · ${llmStatus.model}`
-                    : 'Configura LLM_API_KEY / LLM_MODEL en el backend para activar la generación'
-                }
-              >
-                <Cpu className="w-3 h-3" />
-                {llmStatus
-                  ? llmStatus.configured
-                    ? llmStatus.model
-                    : 'Modo extractivo'
-                  : 'Verificando motor...'}
-              </span>
-              <span className="text-xs text-slate-400 font-mono hidden sm:inline">RAG + citas</span>
             </div>
           </div>
 
-          {/* Mensajes del Chat */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* Área de conversación con scroll interno */}
+          <div ref={chatScrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             {chatMessages.map((msg) => (
               <div
                 key={msg.id}
@@ -462,19 +615,19 @@ export const P03_NotebookLM: React.FC = () => {
               </div>
             )}
 
-            <div ref={chatBottomRef} />
           </div>
 
-          {/* Formulario de Pregunta del Chat */}
-          <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-950/80">
-            <div className="relative flex items-center">
-              <input
-                type="text"
+          {/* Barra para escribir: siempre al pie de la celda de IA */}
+          <form onSubmit={handleSend} className="shrink-0 border-t border-slate-800/80 bg-slate-950/70 p-3">
+            <div className="relative">
+              <textarea
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Pregúntale a la IA sobre las fuentes o profundiza en cualquier lámina..."
+                onKeyDown={handleInputKeyDown}
+                placeholder="Escribe tu pregunta sobre el tema..."
+                rows={2}
                 disabled={isSearching}
-                className="w-full bg-slate-900 border border-slate-700 focus:border-cyan-400 rounded-xl pl-4 pr-12 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all font-sans"
+                className="w-full resize-none rounded-xl border border-slate-700 bg-slate-900 py-2.5 pl-3 pr-12 text-sm leading-relaxed text-slate-100 placeholder-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60"
               />
 
               {isSearching ? (
@@ -482,70 +635,80 @@ export const P03_NotebookLM: React.FC = () => {
                   type="button"
                   onClick={stopChatStream}
                   title="Detener la generación"
-                  className="absolute right-2.5 p-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition-all shadow-md shadow-amber-500/20"
+                  className="absolute bottom-2.5 right-2.5 rounded-lg bg-amber-500 p-2 text-slate-950 transition-colors hover:bg-amber-400"
                 >
-                  <Square className="w-4 h-4 fill-current" />
+                  <Square className="h-4 w-4 fill-current" />
                 </button>
               ) : (
                 <button
                   type="submit"
                   disabled={!inputMessage.trim()}
-                  className="absolute right-2.5 p-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-30 disabled:hover:bg-cyan-500 text-slate-950 font-bold transition-all shadow-md shadow-cyan-500/20"
+                  className="absolute bottom-2.5 right-2.5 rounded-lg bg-cyan-500 p-2 text-slate-950 transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-cyan-500"
+                  title="Enviar pregunta"
                 >
-                  <CornerDownLeft className="w-4 h-4" />
+                  <CornerDownLeft className="h-4 w-4" />
                 </button>
               )}
             </div>
+            <p className="mt-1.5 text-[10px] text-slate-500">
+              Enter envía · Shift + Enter salto de línea
+            </p>
           </form>
-        </section>
+          </section>
 
-        {/* COLUMNA DERECHA: Lámina Minimizada + Documento/Fuentes + Robot (5 columnas) */}
-        <section className="lg:col-span-5 flex flex-col h-full bg-slate-950/90 overflow-hidden">
-          {/* Columna Derecha Sup: Lámina Activa Minimizada */}
-          <div className="p-4 border-b border-slate-800 bg-slate-900/60 shrink-0">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-cyan-400" /> Lámina Referencial Minimizada
-              </span>
-              <span className="text-[11px] font-mono text-cyan-400">
-                #{currentSlide.number} / {selectedTopic.slides.length}
-              </span>
-            </div>
-
-            {/* Miniatura maquetada de la lámina */}
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs shadow-inner space-y-1.5">
-              <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800/40 inline-block">
-                {currentSlide.tag}
-              </span>
-              <h4 className="font-bold text-slate-100 text-sm">{currentSlide.title}</h4>
-              <p className="text-xs text-cyan-400 font-medium">{currentSlide.headline}</p>
-              <ul className="text-[11px] text-slate-400 space-y-1 pt-1 list-disc pl-4">
-                {currentSlide.bullet_points.slice(0, 2).map((bp, i) => (
-                  <li key={i}>{bp}</li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Selector rápido de lámina */}
-            <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto pb-1">
-              {selectedTopic.slides.map((s, idx) => (
+          {/* Fila superior — Celda derecha: Documento PDF */}
+          <section
+            {...cellInteractionProps('pdf')}
+            ref={pdfCellRef}
+            className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-950/70 ${
+              pdfExpanded ? 'h-[820px]' : 'h-[520px] lg:h-[560px]'
+            } ${activeCell === 'pdf' ? activeCellClass : 'border-slate-800/80'}`}
+          >
+            {/* Barra superior de la celda */}
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-900/60 px-4 py-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <FileText className="h-4 w-4 shrink-0 text-cyan-400" />
+                <h2 className="truncate text-sm font-bold text-slate-200">Documento PDF</h2>
+                {activeChip('pdf')}
+                {activeHighlightPage && (
+                  <span className="shrink-0 rounded border border-amber-400/40 bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-300">
+                    p.{activeHighlightPage}
+                  </span>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {hasMarkdownNotes && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDocumentView(documentView === 'notes' ? 'pdf' : 'notes')
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+                    title="Alternar entre el PDF y las notas Markdown"
+                  >
+                    {documentView === 'notes' ? 'PDF' : 'Notas'}
+                  </button>
+                )}
                 <button
-                  key={s.id}
-                  onClick={() => goToSlide(idx)}
-                  className={`text-[10px] px-2 py-1 rounded font-mono border transition-all ${
-                    idx === currentSlideIndex
-                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 font-bold'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}
+                  type="button"
+                  onClick={() => setPdfExpanded((v) => !v)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+                  title={pdfExpanded ? 'Restaurar altura del documento' : 'Ampliar el documento'}
                 >
-                  L{s.number}
+                  {pdfExpanded ? (
+                    <Minimize2 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Maximize2 className="h-3.5 w-3.5" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {pdfExpanded ? 'Restaurar' : 'Ampliar'}
+                  </span>
                 </button>
-              ))}
+              </div>
             </div>
-          </div>
 
-          {/* Pestañas del panel derecho */}
-          <div className="flex items-center gap-1 px-4 pt-3 shrink-0">
+            {/* Pestañas del panel derecho */}
+            <div className="flex shrink-0 items-center gap-1 border-b border-slate-800/60 px-4 pb-2 pt-2.5">
             <button
               onClick={() => setRightTab('documento')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-colors ${
@@ -587,7 +750,11 @@ export const P03_NotebookLM: React.FC = () => {
           {/* Contenido de la pestaña activa */}
           <div className="flex-1 min-h-0 px-4 pt-2.5 pb-1 overflow-hidden">
             {rightTab === 'documento' &&
-              (hasMarkdownNotes && documentView === 'notes' ? (
+              (showPdf ? (
+                <div className="flex h-full min-h-0 flex-col">
+                  <PdfHighlightViewer />
+                </div>
+              ) : hasMarkdownNotes ? (
                 <div className="flex h-full min-h-0 flex-col">
                   <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
                     <span className="truncate text-[11px] font-semibold text-slate-300">
@@ -629,32 +796,11 @@ export const P03_NotebookLM: React.FC = () => {
                     />
                   </div>
                 </div>
-              ) : hasPdf ? (
-                <div className="flex h-full min-h-0 flex-col">
-                  {hasMarkdownNotes && (
-                    <div className="mb-2 flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
-                      <span className="truncate text-[11px] font-semibold text-slate-300">
-                        PDF original del módulo
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setDocumentView('notes')}
-                        className="inline-flex items-center gap-1 rounded border border-cyan-500/40 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[10px] text-cyan-300 transition-colors hover:bg-cyan-500/20"
-                        title="Volver a las notas Markdown"
-                      >
-                        Notas
-                      </button>
-                    </div>
-                  )}
-                  <div className="flex-1 min-h-0">
-                    <PdfHighlightViewer />
-                  </div>
-                </div>
               ) : (
                 <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-slate-500">
                   <FileText className="h-7 w-7 text-slate-600" />
                   <p className="text-xs leading-relaxed">
-                    Este módulo no tiene notas Markdown ni PDF disponibles todavía.
+                    Este módulo no tiene PDF ni notas Markdown disponibles todavía.
                     Sube el material a Supabase Storage o usa el botón Sincronizar.
                   </p>
                 </div>
@@ -781,35 +927,103 @@ export const P03_NotebookLM: React.FC = () => {
               </div>
             )}
           </div>
+          </section>
 
-          {/* Cuartel del asistente: buscador bibliotecario fijo */}
-          <div className="p-3 shrink-0">
-            <div className="flex items-center gap-3 rounded-2xl border border-purple-500/30 bg-slate-900/90 p-3 shadow-lg">
-              <RobotAvatar
-                mood={robotMood}
-                size="sm"
-                isTyping={inputMessage.trim().length > 0 && !isSearching}
-                onClick={() => setRobotMood('buscar_antena', 1500)}
-              />
-              <div className="text-xs">
-                <p className="font-bold text-purple-300">{ASSISTANT_NAME} · Bibliotecario</p>
-                <p className="text-[11px] text-slate-400">
-                  {rightTab === 'documento'
-                    ? hasMarkdownNotes
-                      ? `Documento continuo con ${notesBlocks.length} bloques anclados al RAG.`
-                      : activeHighlightPage
-                        ? `Visor PDF enfocado en la página ${activeHighlightPage}.`
-                        : 'Visor del PDF oficial del módulo.'
-                    : rightTab === 'fragmentos'
-                      ? `${fragmentSources.length} fragmentos del texto base disponibles.`
-                      : webDisplaySources.length > 0
-                        ? `${webDisplaySources.length} fuentes web externas citadas.`
-                        : 'Sin fuentes web en esta conversación.'}
-                </p>
+          {/* Fila inferior — Celda combinada a lo ancho: Diapositiva */}
+          <section
+            {...cellInteractionProps('slide')}
+            className={`flex min-h-[420px] flex-col overflow-hidden rounded-2xl border bg-slate-900/50 ${
+              activeCell === 'slide' ? activeCellClass : 'border-slate-800/80'
+            }`}
+          >
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/50 px-4 py-2.5 sm:px-5">
+              <div className="flex min-w-0 items-center gap-2">
+                <Layers className="h-4 w-4 shrink-0 text-cyan-400" />
+                <h2 className="truncate text-sm font-bold text-slate-200">
+                  Lámina {currentSlide.number} · Ancho completo
+                </h2>
+                {activeChip('slide')}
               </div>
+              <span className="shrink-0 font-mono text-[11px] text-cyan-400">
+                Lámina {currentSlideIndex + 1} de {selectedTopic.slides.length}
+              </span>
             </div>
-          </div>
-        </section>
+
+            <div className="px-5 py-6 sm:px-7">
+              <span className="inline-block rounded border border-cyan-800/40 bg-cyan-950/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+                {currentSlide.tag}
+              </span>
+              <h3 className="mt-3 text-xl font-bold leading-snug text-slate-100 sm:text-2xl">
+                {currentSlide.title}
+              </h3>
+              <p className="mt-1.5 text-sm font-medium text-cyan-300">
+                {currentSlide.headline}
+              </p>
+
+              <ul className="mt-4 space-y-2.5">
+                {currentSlide.bullet_points.map((bp, i) => (
+                  <li key={i} className="flex gap-3 text-sm leading-relaxed text-slate-300 sm:text-base">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400" />
+                    <span>{bp}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {currentSlide.code_snippet && (
+                <pre className="mt-5 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs leading-relaxed text-slate-300">
+                  <code>{currentSlide.code_snippet}</code>
+                </pre>
+              )}
+
+              {currentSlide.speaker_notes && (
+                <p className="mt-5 border-t border-slate-800 pt-3 text-xs italic leading-relaxed text-slate-500">
+                  {currentSlide.speaker_notes}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 bg-slate-950/60 px-4 py-3">
+              <button
+                type="button"
+                onClick={prevSlide}
+                disabled={currentSlideIndex === 0}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </button>
+
+              <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 overflow-x-auto px-2 pb-1">
+                {selectedTopic.slides.map((s, idx) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => goToSlide(idx)}
+                    title={s.title}
+                    className={`shrink-0 rounded-lg border px-2.5 py-1 font-mono text-[11px] transition-colors ${
+                      idx === currentSlideIndex
+                        ? 'border-cyan-400 bg-cyan-500/20 font-bold text-cyan-200'
+                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    {s.number}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={nextSlide}
+                disabled={currentSlideIndex === selectedTopic.slides.length - 1}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </section>
+        </div>
+      </main>
       </div>
     </div>
   );

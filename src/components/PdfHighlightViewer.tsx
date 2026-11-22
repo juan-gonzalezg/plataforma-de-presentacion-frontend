@@ -174,7 +174,11 @@ export const PdfHighlightViewer: React.FC = () => {
       </div>
 
       {/* Lienzo del documento */}
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto p-3 bg-slate-950/40">
+      <div
+        ref={containerRef}
+        data-pdf-scroll
+        className="flex-1 min-h-0 overflow-y-auto p-3 bg-slate-950/40"
+      >
         <Document
           file={pdfUrl}
           onLoadSuccess={({ numPages: n }) => setNumPages(n)}
