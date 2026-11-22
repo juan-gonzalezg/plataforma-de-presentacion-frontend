@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Sparkles,
   BookOpen,
@@ -35,6 +35,8 @@ import {
 } from '../lib/sessionExport';
 import { ChatSource, HighlightBbox } from '../types';
 import { ASSISTANT_NAME } from '../lib/brand';
+import { SpotlightTour, TourStep } from './SpotlightTour';
+import { hasSeenGuide, markGuideSeen } from '../lib/guideSeen';
 
 type RightTab = 'documento' | 'fragmentos' | 'web';
 type StudyCell = 'ai' | 'pdf' | 'slide';
@@ -47,6 +49,27 @@ interface FocusTarget {
   bbox?: HighlightBbox;
   source?: 'local' | 'web';
 }
+
+const STUDY_GUIDE_STEPS: TourStep[] = [
+  {
+    selector: '[data-tour="study-assistant"]',
+    title: 'Asistente de Estudio',
+    description:
+      'Aquí puedes hacer preguntas sobre el tema y leer las respuestas basadas en el material. Escribe abajo y pulsa Enter para enviar (o Shift + Enter para saltar de línea).'
+  },
+  {
+    selector: '[data-tour="study-pdf"]',
+    title: 'Documento PDF',
+    description:
+      'Aquí ves el documento original del módulo. Puedes cambiar de página, hacer scroll dentro del texto o pulsar Ampliar para leerlo con más espacio.'
+  },
+  {
+    selector: '[data-tour="study-slide"]',
+    title: 'Lámina y teclado',
+    description:
+      'Abajo tienes la lámina a todo lo ancho para leerla con comodidad. Si haces clic o scroll en un bloque, podrás moverte con las flechas del teclado; y cuando quieras, pulsa Salir para cerrar esta guía.'
+  }
+];
 
 export const P03_NotebookLM: React.FC = () => {
   const {
@@ -78,10 +101,24 @@ export const P03_NotebookLM: React.FC = () => {
   // siguen disponibles desde un control discreto dentro de la celda.
   const [documentView, setDocumentView] = useState<'notes' | 'pdf'>('pdf');
   const [activeCell, setActiveCell] = useState<StudyCell>('slide');
-  const [showGuide, setShowGuide] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [pdfExpanded, setPdfExpanded] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const pdfCellRef = useRef<HTMLElement>(null);
+
+  const closeGuide = useCallback(() => {
+    setIsGuideOpen(false);
+    markGuideSeen('study');
+  }, []);
+
+  // Se muestra una sola vez por vista; siempre se puede reabrir desde "? Guía".
+  useEffect(() => {
+    if (hasSeenGuide('study')) return;
+    const timer = window.setTimeout(() => {
+      if (!hasSeenGuide('study')) setIsGuideOpen(true);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // Estado del proveedor LLM (para indicar si hay generación real o modo extractivo)
   useEffect(() => {
@@ -106,7 +143,7 @@ export const P03_NotebookLM: React.FC = () => {
     setRightTab('documento');
     setDocumentView('pdf');
     setActiveCell('slide');
-    setShowGuide(false);
+    setIsGuideOpen(false);
     setPdfExpanded(false);
   }, [selectedTopic?.id]);
 
@@ -388,7 +425,7 @@ export const P03_NotebookLM: React.FC = () => {
             <AccessibilityControls />
             <button
               type="button"
-              onClick={() => setShowGuide((v) => !v)}
+              onClick={() => setIsGuideOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
               title="Guía rápida del Modo de Estudio"
             >
@@ -396,41 +433,6 @@ export const P03_NotebookLM: React.FC = () => {
               Guía
             </button>
           </div>
-
-          {showGuide && (
-            <div
-              onPointerDown={(e) => e.stopPropagation()}
-              className="absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-slate-700 bg-slate-900/95 p-4 text-xs shadow-2xl backdrop-blur-xl"
-            >
-              <div className="mb-2 flex items-center justify-between">
-                <p className="flex items-center gap-1.5 font-bold text-slate-100">
-                  <HelpCircle className="h-3.5 w-3.5 text-cyan-400" /> Guía rápida
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowGuide(false)}
-                  className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-200"
-                  title="Cerrar guía"
-                >
-                  ×
-                </button>
-              </div>
-              <ul className="space-y-2 leading-relaxed text-slate-400">
-                <li>
-                  <span className="font-semibold text-cyan-300">Asistente:</span> escribe tu pregunta. Enter envía y Shift + Enter agrega una línea.
-                </li>
-                <li>
-                  <span className="font-semibold text-cyan-300">PDF:</span> usa ↑ / ↓ o PageUp / PageDown para desplazarte; los botones cambian de página.
-                </li>
-                <li>
-                  <span className="font-semibold text-cyan-300">Diapositiva:</span> usa ← / → para avanzar o retroceder.
-                </li>
-              </ul>
-              <p className="mt-3 border-t border-slate-800 pt-2 text-[11px] text-slate-500">
-                Haz clic en una celda para activarla. Las teclas nunca actuarán mientras escribes.
-              </p>
-            </div>
-          )}
         </header>
 
       {/* 2. Rejilla principal: mismo ancho y alineación que el Home */}
@@ -438,6 +440,7 @@ export const P03_NotebookLM: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Fila superior — Celda izquierda: Asistente de Estudio (IA) */}
           <section
+            data-tour="study-assistant"
             {...cellInteractionProps('ai')}
             className={`flex ${studyRowHeight} min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-900/60 ${
               activeCell === 'ai' ? activeCellClass : 'border-slate-800/80'
@@ -663,6 +666,7 @@ export const P03_NotebookLM: React.FC = () => {
 
           {/* Fila superior — Celda derecha: Documento PDF */}
           <section
+            data-tour="study-pdf"
             {...cellInteractionProps('pdf')}
             ref={pdfCellRef}
             className={`flex ${studyRowHeight} min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-950/70 ${
@@ -940,6 +944,7 @@ export const P03_NotebookLM: React.FC = () => {
 
           {/* Fila inferior — Celda combinada a lo ancho: Diapositiva */}
           <section
+            data-tour="study-slide"
             {...cellInteractionProps('slide')}
             className={`flex ${studyRowHeight} flex-col overflow-hidden rounded-2xl border bg-slate-900/50 lg:col-span-2 ${
               activeCell === 'slide' ? activeCellClass : 'border-slate-800/80'
@@ -1033,6 +1038,12 @@ export const P03_NotebookLM: React.FC = () => {
           </section>
         </div>
       </main>
+
+        <SpotlightTour
+          steps={STUDY_GUIDE_STEPS}
+          open={isGuideOpen}
+          onClose={closeGuide}
+        />
       </div>
     </div>
   );

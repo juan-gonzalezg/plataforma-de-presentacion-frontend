@@ -17,11 +17,14 @@ import {
   RotateCcw,
   AlertTriangle,
   X,
-  Trash2
+  Trash2,
+  HelpCircle
 } from 'lucide-react';
 import { usePresentationStore } from '../store/usePresentationStore';
 import { RobotAvatar } from './RobotAvatar';
 import { AccessibilityControls } from './AccessibilityControls';
+import { SpotlightTour, TourStep } from './SpotlightTour';
+import { hasSeenGuide, markGuideSeen } from '../lib/guideSeen';
 import {
   clearOfflineCache,
   getOfflineCacheInfo,
@@ -30,6 +33,21 @@ import {
 } from '../lib/offlineCache';
 import type { OfflineCacheInfo } from '../lib/offlineCache';
 import { ASSISTANT_GREETING, ASSISTANT_NAME } from '../lib/brand';
+
+const HOME_GUIDE_STEPS: TourStep[] = [
+  {
+    selector: '[data-tour="home-modules"]',
+    title: 'Tarjetas de módulos',
+    description:
+      'Cada tarjeta te deja entrar a Estudiar (IA) o a Presentación. También puedes descargar el PDF del módulo si lo necesitas.'
+  },
+  {
+    selector: '[data-tour="home-status"]',
+    title: 'Estado y sincronización',
+    description:
+      'Aquí actualizas los materiales y revisas si están disponibles, sin interrumpir la elección del módulo.'
+  }
+];
 
 export const P01_Home: React.FC = () => {
   const { 
@@ -64,6 +82,22 @@ export const P01_Home: React.FC = () => {
     message: string;
   } | null>(null);
   const [localNoticeDismissed, setLocalNoticeDismissed] = React.useState(false);
+
+  // Mini-guía del Home: aparece una sola vez y se puede reabrir desde "? Guía".
+  const [isGuideOpen, setIsGuideOpen] = React.useState(false);
+
+  const closeGuide = React.useCallback(() => {
+    setIsGuideOpen(false);
+    markGuideSeen('home');
+  }, []);
+
+  useEffect(() => {
+    if (hasSeenGuide('home')) return;
+    const timer = window.setTimeout(() => {
+      if (!hasSeenGuide('home')) setIsGuideOpen(true);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // El modo offline real necesita service worker y Cache API; se activa en la
   // compilación de producción.
@@ -369,7 +403,10 @@ export const P01_Home: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <div
+            data-tour="home-status"
+            className="flex flex-wrap items-center gap-2 lg:justify-end"
+          >
             <button
               onClick={handleSync}
               disabled={isSyncing || isLoadingTopics}
@@ -439,6 +476,15 @@ export const P01_Home: React.FC = () => {
               </span>
             </div>
             <AccessibilityControls />
+            <button
+              type="button"
+              onClick={() => setIsGuideOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
+              title="Guía rápida del inicio"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              Guía
+            </button>
           </div>
         </header>
 
@@ -666,13 +712,19 @@ export const P01_Home: React.FC = () => {
 
         {/* C. Grilla de tarjetas de módulos (HU-HOM-01) */}
         {isLoadingTopics ? (
-          <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div
+            data-tour="home-modules"
+            className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+          >
             {[1, 2, 3].map((n) => (
               <div key={n} className="h-64 animate-pulse rounded-2xl border border-slate-800 bg-slate-900/50" />
             ))}
           </div>
         ) : (
-          <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div
+            data-tour="home-modules"
+            className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+          >
             {topics.map((topic) => {
               const availableFormats = (['pdf', 'pptx', 'md'] as const).filter(
                 (tipo) => Boolean(topic.files?.[tipo])
@@ -796,6 +848,12 @@ export const P01_Home: React.FC = () => {
           </p>
           <span className="font-mono text-slate-400">v1.0.0 • React + FastAPI RAG</span>
         </footer>
+
+        <SpotlightTour
+          steps={HOME_GUIDE_STEPS}
+          open={isGuideOpen}
+          onClose={closeGuide}
+        />
       </div>
     </div>
   );
