@@ -831,7 +831,7 @@ export const P01_Home: React.FC = () => {
                       type="button"
                       onClick={() => handleEnterTopic(topic.id, 'presentation')}
                       disabled={isLoadingTopicDetail}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2.5 text-xs font-semibold text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2.5 text-xs font-semibold text-slate-100 transition-colors hover:border-[#778d7a] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Play className="h-3.5 w-3.5" />
                       Presentación

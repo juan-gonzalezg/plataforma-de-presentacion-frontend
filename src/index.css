@@ -80,6 +80,13 @@
   }
 }
 
+/* Con el spotlight abierto, los relieves se aplanan: el paso resaltado
+   destaca por contraste, no por sombras que compitan con él. */
+.tour-active .soft-control,
+.tour-active .clay-badge {
+  box-shadow: none;
+}
+
 /* Modos de contraste para proyección (HU-RES-02).
    Las clases se aplican en <html> desde App.tsx. */
 /* Oscuro relajante: azul noche + pizarra, crema y verde salvia. */
@@ -200,6 +207,17 @@
 
 .theme-clean-light .hover\:text-white:hover {
   color: #0d1b2a;
+}
+
+/* El foco también usa salvia en los modos relajantes. */
+.theme-cinema-dark .focus\:border-cyan-400:focus,
+.theme-clean-light .focus\:border-cyan-400:focus {
+  border-color: #778d7a;
+}
+
+.theme-cinema-dark .focus\:ring-cyan-500\/20:focus,
+.theme-clean-light .focus\:ring-cyan-500\/20:focus {
+  --tw-ring-color: rgba(119, 141, 122, 0.35);
 }
 
 /* Tamaños de fuente accesibles: se aplican en <html>. */

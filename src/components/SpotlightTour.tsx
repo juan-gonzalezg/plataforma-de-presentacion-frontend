@@ -77,6 +77,15 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
     };
   }, [open, measure]);
 
+  // Mientras el tour está activo se aplanan los relieves: el paso resaltado
+  // debe destacar por el contraste, no por sombras que compitan con él.
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.classList.add('tour-active');
+    return () => root.classList.remove('tour-active');
+  }, [open]);
+
   // Salida sin fricción: Esc cierra en cualquier paso.
   useEffect(() => {
     if (!open) return;
@@ -143,7 +152,7 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
     >
       {highlightStyle ? (
         <div
-          className="pointer-events-none absolute rounded-2xl border-2 border-cyan-400/80 transition-all duration-200"
+          className="pointer-events-none absolute rounded-2xl border-2 border-[#778d7a] transition-all duration-200"
           style={highlightStyle}
         />
       ) : (
@@ -156,13 +165,13 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
           event.stopPropagation();
           onClose();
         }}
-        className="absolute right-4 top-4 rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-200 shadow-lg transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+        className="absolute right-4 top-4 rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-1.5 text-xs font-semibold text-slate-100 shadow-lg transition-colors hover:border-[#778d7a]/60"
       >
         Salir
       </button>
 
       <div
-        className="absolute rounded-2xl border border-cyan-500/40 bg-slate-900/95 p-4 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl transition-all duration-200"
+        className="absolute rounded-2xl border border-[#778d7a]/50 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl transition-all duration-200"
         style={cardStyle}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -170,7 +179,7 @@ export const SpotlightTour: React.FC<SpotlightTourProps> = ({
         aria-modal="false"
         aria-live="polite"
       >
-        <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-cyan-300">
+        <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-100">
           <HelpCircle className="h-3.5 w-3.5" />
           {index + 1} de {total} · {step.title}
         </div>

@@ -178,8 +178,8 @@ export const P03_NotebookLM: React.FC = () => {
   const hasPdf = Boolean(selectedTopic.files?.pdf);
   const showPdf = hasPdf && documentView === 'pdf';
 
-  // Indicador muy sutil de la celda que recibe el teclado.
-  const activeCellClass = 'border-cyan-500/45 ring-1 ring-cyan-500/10';
+  // Borde salvia sólido y visible: el foco no depende de una sombra difusa.
+  const activeCellClass = 'border-2 border-[#778d7a]';
   // Misma altura para las tres celdas: al ampliar el PDF crecen juntas
   // la IA y la lámina, conservando el aspecto de celda combinada.
   const studyRowHeight = pdfExpanded
@@ -187,7 +187,7 @@ export const P03_NotebookLM: React.FC = () => {
     : 'h-[clamp(520px,62vh,680px)]';
   const activeChip = (cell: StudyCell) =>
     activeCell === cell ? (
-      <span className="shrink-0 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+      <span className="shrink-0 rounded-full border border-[#778d7a]/60 bg-[#778d7a]/15 px-1.5 py-0.5 text-[10px] font-semibold text-slate-100">
         Activa
       </span>
     ) : null;
@@ -705,7 +705,7 @@ export const P03_NotebookLM: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setPdfExpanded((v) => !v)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:border-cyan-500/50 hover:text-cyan-300"
+                  className="soft-control inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-100"
                   title={pdfExpanded ? 'Restaurar altura del documento' : 'Ampliar el documento'}
                 >
                   {pdfExpanded ? (
