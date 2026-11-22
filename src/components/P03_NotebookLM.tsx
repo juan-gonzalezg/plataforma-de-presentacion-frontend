@@ -143,8 +143,11 @@ export const P03_NotebookLM: React.FC = () => {
 
   // Indicador muy sutil de la celda que recibe el teclado.
   const activeCellClass = 'border-cyan-500/45 ring-1 ring-cyan-500/10';
-  // Misma altura para las tres celdas: IA, PDF y lámina quedan alineadas.
-  const studyRowHeight = 'h-[clamp(520px,62vh,680px)]';
+  // Misma altura para las tres celdas: al ampliar el PDF crecen juntas
+  // la IA y la lámina, conservando el aspecto de celda combinada.
+  const studyRowHeight = pdfExpanded
+    ? 'h-[min(82vh,900px)]'
+    : 'h-[clamp(520px,62vh,680px)]';
   const activeChip = (cell: StudyCell) =>
     activeCell === cell ? (
       <span className="shrink-0 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300">
@@ -662,9 +665,9 @@ export const P03_NotebookLM: React.FC = () => {
           <section
             {...cellInteractionProps('pdf')}
             ref={pdfCellRef}
-            className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-950/70 ${
-              pdfExpanded ? 'h-[min(82vh,900px)]' : studyRowHeight
-            } ${activeCell === 'pdf' ? activeCellClass : 'border-slate-800/80'}`}
+            className={`flex ${studyRowHeight} min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-950/70 ${
+              activeCell === 'pdf' ? activeCellClass : 'border-slate-800/80'
+            }`}
           >
             {/* Barra superior de la celda */}
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-900/60 px-4 py-2.5">
