@@ -390,15 +390,12 @@ export const P01_Home: React.FC = () => {
         {/* A. Barra superior / cabecera de estado */}
         <header className="flex flex-col gap-4 border-b border-slate-800/80 pb-5 lg:flex-row lg:items-center lg:justify-between lg:gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-              <Sparkles className="w-5 h-5 text-slate-950" />
-            </div>
             <div className="min-w-0">
               <h1 className="truncate text-lg font-black tracking-tight text-slate-100 uppercase sm:text-xl">
-                Presentación Interactiva <span className="text-cyan-400">&</span> Asistente RAG
+                Presentaciones Interactivas con Asistente IA
               </h1>
               <p className="text-[11px] text-slate-400 sm:text-xs">
-                Plataforma Educativa con {ASSISTANT_NAME} (robot 2D) y Documento de Notas Vivas
+                Plataforma Educativa con {ASSISTANT_NAME} y Documento de Notas Vivas
               </p>
             </div>
           </div>
