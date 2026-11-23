@@ -36,19 +36,19 @@ const PRESENTATION_GUIDE_STEPS: TourStep[] = [
     selector: '[data-tour="presentation-toolbar"]',
     title: 'Herramientas de la sesión',
     description:
-      'Aquí tienes "Duda al Vuelo" (Q) para preguntar, "Notas Vivas" (N) para abrir el documento, el Modo de Estudio y el robot. La guía siempre se puede reabrir desde el botón "Guía".'
+      'Aquí tienes "Duda al Vuelo" (Q) para consultar con IA citando fuentes, "Notas Vivas" (N) para abrir el documento interactivo, el Modo de Estudio y el Robot asistente. Puedes volver a ver este tutorial cuando quieras con el botón "Tutorial" o la tecla "?".'
   },
   {
     selector: '[data-tour="presentation-slide"]',
-    title: 'Lámina',
+    title: 'Diapositiva Interactiva',
     description:
-      'La diapositiva se muestra a todo lo ancho. Avanza con las flechas del teclado o con los botones de abajo; la idea clave aparece al final.'
+      'La lámina se muestra en formato cinematográfico. Avanza con las flechas del teclado (← / →) o la barra espaciadora; las ideas clave y el contenido se adaptan dinámicamente.'
   },
   {
     selector: '[data-tour="presentation-nav"]',
-    title: 'Navegación',
+    title: 'Navegación y Miniaturas',
     description:
-      'Usa las flechas o las miniaturas para saltar a cualquier lámina. El contador muestra la posición y el progreso de la presentación.'
+      'Usa las flechas inferiores o haz clic en las miniaturas para saltar directamente a cualquier lámina. El contador muestra tu progreso en la sesión.'
   }
 ];
 
@@ -155,24 +155,28 @@ export const P02_Presentacion: React.FC = () => {
     setRobotPresence((current) => nextRobotPresence(current));
   }, []);
 
-  // Tecla R: alterna la presencia sin abrir menús en plena charla.
+  // Teclas de atajo: R para robot, ? o H para abrir el tutorial / guía
   React.useEffect(() => {
-    const handleRobotKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'r' && event.key !== 'R') return;
-      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
-
+    const handlePresentationKeyDown = (event: KeyboardEvent) => {
       const active = document.activeElement as HTMLElement | null;
       const tagName = active?.tagName.toLowerCase();
       if (tagName === 'input' || tagName === 'textarea' || active?.isContentEditable) {
         return;
       }
 
-      event.preventDefault();
-      cycleRobotPresence();
+      if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+
+      if (event.key === 'r' || event.key === 'R') {
+        event.preventDefault();
+        cycleRobotPresence();
+      } else if (event.key === '?' || event.key === 'h' || event.key === 'H') {
+        event.preventDefault();
+        setIsGuideOpen(true);
+      }
     };
 
-    window.addEventListener('keydown', handleRobotKeyDown);
-    return () => window.removeEventListener('keydown', handleRobotKeyDown);
+    window.addEventListener('keydown', handlePresentationKeyDown);
+    return () => window.removeEventListener('keydown', handlePresentationKeyDown);
   }, [cycleRobotPresence]);
 
   // Mini-guía de la presentación: aparece una sola vez y se reabre desde "Guía".
@@ -314,11 +318,12 @@ export const P02_Presentacion: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsGuideOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900/70 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
-            title="Guía rápida de la presentación"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-xs font-medium text-cyan-200 transition-all hover:bg-cyan-500/20 hover:border-cyan-400 active:scale-95 shadow-sm"
+            title="Abrir tutorial interactivo y guía de atajos (?)"
           >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Guía</span>
+            <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Tutorial</span>
+            <kbd className="hidden sm:inline-block font-mono text-[10px] px-1 py-0.5 rounded bg-slate-900/80 border border-cyan-500/30 text-cyan-300">?</kbd>
           </button>
         </div>
       </header>

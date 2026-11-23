@@ -480,11 +480,11 @@ export const P01_Home: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-500/30 bg-slate-900/80 px-3 py-1.5 text-xs font-medium text-cyan-300 transition-colors hover:border-cyan-400 hover:bg-slate-850"
               title="Guía rápida del inicio"
             >
-              <HelpCircle className="h-3.5 w-3.5" />
-              Guía
+              <HelpCircle className="h-3.5 w-3.5 text-cyan-400" />
+              Guía de inicio
             </button>
           </div>
         </header>
@@ -515,17 +515,22 @@ export const P01_Home: React.FC = () => {
 
         {/* Sesión recuperada del autoguardado local */}
         {selectedTopic && (
-          <div className="mb-8 flex w-full flex-col gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-8 flex w-full flex-col gap-3 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between shadow-lg shadow-cyan-950/20 backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300">
-                <History className="h-4 w-4" />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                <History className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-cyan-200">
-                  Reanudar sesión guardada
-                </p>
-                <p className="text-xs text-slate-400">
-                  {selectedTopic.title} · Lámina {savedSlideNumber} de{' '}
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-cyan-200">
+                    Reanudar sesión guardada
+                  </p>
+                  <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-cyan-300 border border-cyan-500/30">
+                    {lastActiveView === 'notebooklm' ? 'Modo Estudio' : 'Presentación'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  <span className="font-semibold text-slate-100">{selectedTopic.title}</span> · Lámina {savedSlideNumber} de{' '}
                   {selectedTopic.slides?.length ?? selectedTopic.slides_count}
                 </p>
               </div>
@@ -534,19 +539,22 @@ export const P01_Home: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCurrentView(lastActiveView)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition-colors hover:bg-cyan-400"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-400 px-4 py-2 text-xs font-bold text-slate-950 shadow-md shadow-cyan-500/20 transition-all hover:scale-[1.02] hover:shadow-cyan-500/30 active:scale-95"
               >
                 {lastActiveView === 'notebooklm' ? (
-                  <BookOpen className="h-3.5 w-3.5" />
+                  <BookOpen className="h-4 w-4" />
                 ) : (
-                  <Play className="h-3.5 w-3.5" />
+                  <Play className="h-4 w-4" />
                 )}
-                {lastActiveView === 'notebooklm' ? 'Reanudar estudio' : 'Reanudar presentación'}
+                {lastActiveView === 'notebooklm'
+                  ? `Reanudar estudio (Lámina ${savedSlideNumber})`
+                  : `Reanudar presentación (Lámina ${savedSlideNumber})`}
               </button>
               <button
                 type="button"
                 onClick={handleDiscardSession}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-red-500/50 hover:text-red-300"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs font-medium text-slate-400 transition-colors hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300"
+                title="Descartar la sesión guardada y empezar de cero"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Descartar

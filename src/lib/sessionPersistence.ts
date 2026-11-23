@@ -126,11 +126,15 @@ export function mergeSession<T extends PersistedSession>(
     merged.lastActiveView !== 'notebooklm'
   ) {
     merged.lastActiveView =
-      merged.currentView === 'notebooklm' ? 'notebooklm' : 'presentation';
+      snapshot.currentView === 'notebooklm' ? 'notebooklm' : 'presentation';
   }
 
+  // Al abrir la aplicación o recargar la página, se arranca siempre en 'home'.
+  // Esto proporciona una bienvenida limpia y acceso al catálogo general,
+  // ofreciendo al mismo tiempo la tarjeta para reanudar la sesión previa con 1 clic.
+  merged.currentView = 'home';
+
   if (!merged.selectedTopic) {
-    merged.currentView = 'home';
     merged.currentSlideIndex = 0;
     merged.activeHighlightBlockId = null;
     merged.activeHighlightPage = null;

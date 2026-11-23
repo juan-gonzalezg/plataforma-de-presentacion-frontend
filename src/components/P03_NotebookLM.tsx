@@ -399,6 +399,12 @@ export const P03_NotebookLM: React.FC = () => {
       // Regla de seguridad: si el usuario escribe, el teclado es suyo.
       if (isTyping) return;
 
+      if (e.key === '?' || e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        setIsGuideOpen(true);
+        return;
+      }
+
       if (activeCell === 'slide') {
         if (e.key === 'ArrowRight') {
           e.preventDefault();
@@ -484,11 +490,12 @@ export const P03_NotebookLM: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsGuideOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
-              title="Guía rápida del Modo de Estudio"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-200 transition-all hover:bg-purple-500/20 hover:border-purple-400 active:scale-95 shadow-sm"
+              title="Abrir tutorial interactivo y guía (?)"
             >
-              <HelpCircle className="h-3.5 w-3.5" />
-              Guía
+              <HelpCircle className="h-3.5 w-3.5 text-purple-400" />
+              <span>Tutorial</span>
+              <kbd className="hidden sm:inline-block font-mono text-[10px] px-1 py-0.5 rounded bg-slate-900/80 border border-purple-500/30 text-purple-300">?</kbd>
             </button>
           </div>
         </header>
